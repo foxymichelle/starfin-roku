@@ -1,0 +1,75 @@
+import "pkg:/source/RequestFailure.bs"
+import "pkg:/source/JellyfinImage.bs"
+import "pkg:/source/Number.bs"
+import "pkg:/source/String.bs"
+import "pkg:/source/Logger.bs"
+import "pkg:/source/Url.bs"
+import "pkg:/source/api/HttpClient.bs"
+import "pkg:/source/api/JellyfinAuth.bs"
+import "pkg:/source/TaskRequest.bs"
+import "pkg:/source/TaskResponse.bs"
+import "pkg:/source/ApiPayload.bs"
+
+sub init()
+    m.log = new Logger("CustomHomeRowsTask", m.global.logService)
+    m.top.functionName = "executeRequest"
+end sub
+
+sub executeRequest()
+    try
+        request = m.top.request
+        validationError = TaskRequest.ValidateRequest(request, "customHomeRows")
+        if validationError <> invalid then
+            m.top.response = validationError
+            return
+        end if
+
+        userId = TaskRequest.GetUserId(request)
+        headers = JellyfinAuth.BuildTokenHeaders(request.token)
+
+        configUrl = request.server + "/web/custom-home-rows.json?t=" + CreateObject("roDateTime").AsSeconds().ToStr()
+        configResponse = HttpClient.Request(configUrl, "GET", invalid, invalid, headers)
+
+        rowsOutput = []
+        if configResponse.ok = true and configResponse.data <> invalid and Type(configResponse.data) = "roArray" then
+            for each rowDef in configResponse.data
+                if Type(rowDef) <> "roAssociativeArray" then continue for
+                collectionId = Strings.ToString(rowDef.id)
+                if collectionId = "" then continue for
+
+                rowTitle = Strings.ToString(rowDef.title)
+                if rowTitle = "" then rowTitle = "Collection"
+
+                params = {
+                    ParentId: collectionId
+                    SortBy: Strings.ToString(rowDef.sortBy)
+                    SortOrder: Strings.ToString(rowDef.sortOrder)
+                    Limit: Number.ToInteger(rowDef.limit, 25)
+                    Fields: "PrimaryImageAspectRatio,Overview"
+                    ImageTypeLimit: 1
+                    EnableImageTypes: Strings.Join([JellyfinImage.Type.Primary, JellyfinImage.Type.Backdrop, JellyfinImage.Type.Thumb, JellyfinImage.Type.Logo])
+                }
+                if params.SortBy = "" then params.SortBy = "SortName"
+                if params.SortOrder = "" then params.SortOrder = "Ascending"
+
+                itemsUrl = request.server + "/Users/" + userId + "/Items" + Url.BuildQueryString(params)
+                itemsResponse = HttpClient.Request(itemsUrl, "GET", invalid, invalid, headers)
+                if itemsResponse.ok = true and itemsResponse.data <> invalid then
+                    items = ApiPayload.GetItems(itemsResponse.data)
+                    if items <> invalid and items.Count() > 0 then
+                        rowsOutput.Push({
+                            key: "customRow_" + collectionId
+                            title: rowTitle
+                            items: items
+                        })
+                    end if
+                end if
+            end for
+        end if
+
+        m.top.response = TaskResponse.Success(request, "customHomeRows", { rows: rowsOutput })
+    catch error
+        m.log.error("Unable to load custom home rows. Error=" + error.number.ToStr())
+        m.top.response = TaskResponse.Success(m.top.request, "customHomeRows", { rows: [] })
+    end try
+end sub

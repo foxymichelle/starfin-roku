@@ -355,6 +355,7 @@ sub refreshHomeData(blocking = false as boolean)
         m.homeState.refresh.pendingCore.Delete("continueListening")
     end if
     runHomeTask("nextUp", "NextUpTask", "onSectionResponse", request)
+    runHomeTask("customHomeRows", "CustomHomeRowsTask", "onCustomHomeRowsResponse", request)
     canAccessLiveTv = false
     if request.permissions <> invalid then canAccessLiveTv = request.permissions.canAccessLiveTv = true
     if canAccessLiveTv then
@@ -561,10 +562,47 @@ sub onSectionResponse(event as object)
 end sub
 
 '-------------------------------------------------------------------------------
+' Custom Home Row Resoponse NEW
+'-------------------------------------------------------------------------------
+sub onCustomHomeRowsResponse(event as object)
+    task = event.getRoSGNode()
+    response = event.getData()
+    if response = invalid then return
+    if isCurrentHomeTask(task, "customHomeRows") <> true then return
+    completeHomeTask(task)
+
+    if response.ok = true and response.payload <> invalid and response.payload.rows <> invalid then
+        for each customRow in response.payload.rows
+            rowKey = Strings.ToString(customRow.key)
+            if rowKey <> "" and customRow.items <> invalid and customRow.items.Count() > 0 then
+                if Arrays.Contains(m.homeState.rowOrder, rowKey) = false then
+                    m.homeState.rowOrder.Push(rowKey)
+                end if
+                addRow(rowKey, customRow.title, customRow.items)
+            end if
+        end for
+        renderRows()
+    end if
+end sub
+
+'-------------------------------------------------------------------------------
 ' refreshNextUpRow
 '-------------------------------------------------------------------------------
 sub refreshNextUpRow()
-    setHomeRowContent("nextUp", "Next Up", getFilteredNextUpItems())
+    combinedItems = []
+    cwItems = m.homeState.sectionItems.continueWatching
+    if cwItems <> invalid then
+        for each item in cwItems
+            combinedItems.Push(item)
+        end for
+    end if
+
+    for each item in getFilteredNextUpItems()
+        combinedItems.Push(item)
+    end for
+
+    setHomeRowContent("continueWatching", "Continue Watching", combinedItems)
+    setHomeRowContent("nextUp", "Next Up", [])
 end sub
 
 '-------------------------------------------------------------------------------
@@ -703,12 +741,21 @@ sub queueLatestMediaRows(libraries as object)
         end if
     end for
 
+    existingCustomKeys = []
+    for each existingKey in m.homeState.rowOrder
+        if Left(existingKey, 10) = "customRow_" then existingCustomKeys.Push(existingKey)
+    end for
+
+
     m.homeState.rowOrder = ["libraries", "continueWatching", "continueListening", "nextUp"]
     for each library in latestLibraries
         m.homeState.rowOrder.Push("latest:" + library.id)
         HomeRefresh.Require(m.homeState.sync, "latest:" + library.id)
     end for
     m.homeState.rowOrder.Push("liveTvOnNow")
+    for each customKey in existingCustomKeys
+        m.homeState.rowOrder.Push(customKey)
+    end for
     obsolete = []
     for each key in m.homeState.sync.required
         if Left(key, 7) = "latest:" and not m.homeState.latestLibraries.DoesExist(Mid(key, 8)) then obsolete.Push(key)

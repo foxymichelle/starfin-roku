@@ -575,7 +575,14 @@ sub onCustomHomeRowsResponse(event as object)
         for each customRow in response.payload.rows
             rowKey = Strings.ToString(customRow.key)
             if rowKey <> "" and customRow.items <> invalid and customRow.items.Count() > 0 then
-                if Arrays.Contains(m.homeState.rowOrder, rowKey) = false then
+                alreadyInOrder = false
+                for each existingKey in m.homeState.rowOrder
+                    if existingKey = rowKey then
+                        alreadyInOrder = true
+                        exit for
+                    end if
+                end for
+                if alreadyInOrder = false then
                     m.homeState.rowOrder.Push(rowKey)
                 end if
                 addRow(rowKey, customRow.title, customRow.items)

@@ -10,11 +10,17 @@ import "pkg:/source/TaskRequest.bs"
 import "pkg:/source/TaskResponse.bs"
 import "pkg:/source/ApiPayload.bs"
 
+'-------------------------------------------------------------------------------
+' init
+'-------------------------------------------------------------------------------
 sub init()
     m.log = new Logger("CustomHomeRowsTask", m.global.logService)
     m.top.functionName = "executeRequest"
 end sub
 
+'-------------------------------------------------------------------------------
+' executeRequest
+'-------------------------------------------------------------------------------
 sub executeRequest()
     try
         request = m.top.request

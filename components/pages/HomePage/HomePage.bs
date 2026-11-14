@@ -562,8 +562,8 @@ sub onSectionResponse(event as object)
 end sub
 
 '-------------------------------------------------------------------------------
-' Custom Home Row Resoponse NEW
-'-------------------------------------------------------------------------------
+' onCustomHomeRowsResponse
+'-------------------------------------------------------------------------
 sub onCustomHomeRowsResponse(event as object)
     task = event.getRoSGNode()
     response = event.getData()

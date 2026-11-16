@@ -114,6 +114,10 @@ sub onHomeShelfSelected(event as object)
     item = selection.item
     m.homeState.focusedShelfIndex = Number.ToInteger(selection.rowIndex, m.homeState.focusedShelfIndex)
     rowKey = Strings.ToString(selection.rowKey)
+    if item <> invalid and item.cfIsLoadMore = true then
+        loadMoreCustomRow(rowKey, item)
+        return
+    end if
     if isMusicLatestRow(rowKey) then
         selectHomeAlbum(item)
     else if isHomeMediaLatestRow(rowKey) then
@@ -121,6 +125,58 @@ sub onHomeShelfSelected(event as object)
     else
         selectHomeItem(item)
     end if
+end sub
+
+'-------------------------------------------------------------------------------
+' loadMoreCustomRow
+'-------------------------------------------------------------------------------
+sub loadMoreCustomRow(rowKey as string, moreItem as object)
+    request = m.homeState.request
+    if request = invalid or m.homeState.customRowMeta = invalid or not m.homeState.customRowMeta.DoesExist(rowKey) then return
+
+    meta = m.homeState.customRowMeta[rowKey]
+    skipCount = Number.ToInteger(moreItem.cfNextSkip, 0)
+    moreRequest = {
+        server: request.server
+        token: request.token
+        userId: request.userId
+        rowIndex: meta.rowIndex
+        skip: skipCount
+        rowKey: rowKey
+    }
+    runHomeTask("customRowMore_" + rowKey, "CustomHomeRowsTask", "onCustomRowMoreResponse", moreRequest)
+end sub
+
+'-------------------------------------------------------------------------------
+' onCustomRowMoreResponse
+'-------------------------------------------------------------------------------
+sub onCustomRowMoreResponse(event as object)
+    task = event.getRoSGNode()
+    response = event.getData()
+    if response = invalid or response.ok <> true or response.payload = invalid or response.payload.rows = invalid then return
+    if response.payload.rows.Count() = 0 then return
+
+    updatedRow = response.payload.rows[0]
+    rowKey = Strings.ToString(updatedRow.key)
+    if rowKey = "" or not m.homeState.sectionItems.DoesExist(rowKey) then return
+
+    existing = m.homeState.sectionItems[rowKey]
+    merged = []
+    for each it in existing
+        if it.cfIsLoadMore <> true then merged.Push(it)
+    end for
+    for each newIt in updatedRow.items
+        if newIt.cfIsLoadMore = true then
+            newIt.cfNextSkip = merged.Count()
+        end if
+        merged.Push(newIt)
+    end for
+
+    meta = m.homeState.customRowMeta[rowKey]
+    title = meta.title
+    if title = "" then title = Strings.ToString(updatedRow.title)
+    addRow(rowKey, title, merged)
+    renderRows()
 end sub
 
 '-------------------------------------------------------------------------------
@@ -180,6 +236,12 @@ sub selectHomeItem(item as dynamic)
     else if isCollectionsLibrary(item) then
         m.top.selectedCollections = {
             libraryId: itemId
+            item: item
+        }
+    else if LCase(Strings.ToString(item.Type)) = "boxset" then
+        m.top.selectedLibrary = {
+            libraryId: itemId
+            collectionType: "boxsets"
             item: item
         }
     else if isLiveTvLibrary(item) then
@@ -336,6 +398,8 @@ sub refreshHomeData(blocking = false as boolean)
     m.homeState.latestLibraries = {}
     m.homeState.latestTasks = []
     m.homeState.sectionItems = {}
+    m.homeState.sectionItems = {}
+    m.homeState.customRowMeta = {}
     m.homeState.shelfNodes = []
     m.homeState.shelfPositions = []
     m.homeState.focusedShelfIndex = 0
@@ -521,10 +585,12 @@ sub onLibrariesResponse(event as object)
 
     HomeRefresh.Accept(m.homeState.sync, "libraries", task.request.homeRevision)
     libraries = reconcileHomeSnapshot(ApiPayload.GetItems(response.payload), task.request.homeRevision)
-    addRow("libraries", "My Media", libraries)
-    queueLatestMediaRows(libraries)
-    renderRows()
-    runLatestMediaTasks()
+    if m.homeState.customRowMeta = invalid or m.homeState.customRowMeta.Count() = 0 then
+        addRow("libraries", "My Media", libraries)
+        queueLatestMediaRows(libraries)
+        renderRows()
+        runLatestMediaTasks()
+    end if
     markCoreTaskComplete("libraries")
 end sub
 
@@ -545,19 +611,21 @@ sub onSectionResponse(event as object)
 
     HomeRefresh.Accept(m.homeState.sync, action, task.request.homeRevision)
     items = reconcileHomeSnapshot(ApiPayload.GetItems(response.payload), task.request.homeRevision)
-    if action = "continueWatching" then
-        addRow(action, "Continue Watching", items)
-        refreshNextUpRow()
-    else if action = "continueListening" then
-        addRow(action, "Continue Listening", items)
-    else if action = "nextUp" then
-        m.homeState.sectionItems.nextUp = items
-        refreshNextUpRow()
-    else if action = "liveTvOnNow" then
-        addRow(action, "On Now", items)
-    end if
+    if m.homeState.customRowMeta = invalid or m.homeState.customRowMeta.Count() = 0 then
+        if action = "continueWatching" then
+            addRow(action, "Continue Watching", items)
+            refreshNextUpRow()
+        else if action = "continueListening" then
+            addRow(action, "Continue Listening", items)
+        else if action = "nextUp" then
+            m.homeState.sectionItems.nextUp = items
+            refreshNextUpRow()
+        else if action = "liveTvOnNow" then
+            addRow(action, "On Now", items)
+        end if
 
-    renderRows()
+        renderRows()
+    end if
     markCoreTaskComplete(action)
 end sub
 
@@ -571,20 +639,25 @@ sub onCustomHomeRowsResponse(event as object)
     if isCurrentHomeTask(task, "customHomeRows") <> true then return
     completeHomeTask(task)
 
-    if response.ok = true and response.payload <> invalid and response.payload.rows <> invalid then
+    if response.ok = true and response.payload <> invalid and response.payload.rows <> invalid and response.payload.rows.Count() > 0 then
+        ' Replace default Starfin rows with CopperFox Home layout
+        for each defaultKey in ["libraries", "continueWatching", "continueListening", "nextUp", "liveTvOnNow"]
+            if m.homeState.rows.DoesExist(defaultKey) then m.homeState.rows.Delete(defaultKey)
+            if m.homeState.sectionItems.DoesExist(defaultKey) then m.homeState.sectionItems.Delete(defaultKey)
+        end for
+        m.homeState.rowOrder = []
+
         for each customRow in response.payload.rows
             rowKey = Strings.ToString(customRow.key)
             if rowKey <> "" and customRow.items <> invalid and customRow.items.Count() > 0 then
-                alreadyInOrder = false
-                for each existingKey in m.homeState.rowOrder
-                    if existingKey = rowKey then
-                        alreadyInOrder = true
-                        exit for
-                    end if
-                end for
-                if alreadyInOrder = false then
-                    m.homeState.rowOrder.Push(rowKey)
-                end if
+                m.homeState.customRowMeta[rowKey] = {
+                    imageStyle: LCase(Strings.ToString(customRow.imageStyle))
+                    rowType: Strings.ToString(customRow.rowType)
+                    rowIndex: customRow.rowIndex
+                    hasMore: (customRow.hasMore = true)
+                    title: Strings.ToString(customRow.title)
+                }
+                m.homeState.rowOrder.Push(rowKey)
                 addRow(rowKey, customRow.title, customRow.items)
             end if
         end for
@@ -880,6 +953,12 @@ end function
 '-------------------------------------------------------------------------------
 function getRowImageAspect(key as string) as string
     if key = "libraries" or key = "continueWatching" or key = "nextUp" then return VideoCardPresentation.Type.Thumbnail
+    if m.homeState.customRowMeta <> invalid and m.homeState.customRowMeta.DoesExist(key) then
+        meta = m.homeState.customRowMeta[key]
+        if meta.rowType = "MyMedia" or meta.rowType = "SliderRow" or meta.imageStyle = "thumb" then
+            return VideoCardPresentation.Type.Thumbnail
+        end if
+    end if
     return VideoCardPresentation.Type.Poster
 end function
 
@@ -1043,6 +1122,20 @@ function getRowLayout(key as string) as object
         return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
     end if
 
+    if m.homeState.customRowMeta <> invalid and m.homeState.customRowMeta.DoesExist(key) then
+        meta = m.homeState.customRowMeta[key]
+        if meta.rowType = "SliderRow" then
+            return { width: 1760, height: 560, itemSizeWidth: 1824, itemSpacing: 24, spacingAfter: 36, focusBitmapFilename: "", itemComponentName: "VideoMediaCard" }
+        end if
+        if meta.rowType = "MyMedia" then
+            return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
+        end if
+        if meta.imageStyle = "thumb" then
+            return { width: 486, height: 348, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
+        end if
+        return { width: 297, height: 465, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-poster-focus.png", itemComponentName: "VideoMediaCard" }
+    end if
+
     if getRowImageAspect(key) = VideoCardPresentation.Type.Thumbnail then
         return { width: 486, height: 348, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
     end if
@@ -1193,6 +1286,43 @@ function getHomeItemImageUrl(key as string, item as dynamic, imageAspect as stri
     if key = "continueWatching" or key = "nextUp" then
         imageUrl = getResumeRowImageUrl(item, imageAspect)
         if imageUrl <> "" then return imageUrl
+    end if
+
+    if m.homeState.customRowMeta <> invalid and m.homeState.customRowMeta.DoesExist(key) then
+        meta = m.homeState.customRowMeta[key]
+        request = m.homeState.request
+        serverUrl = ""
+        token = ""
+        if request <> invalid then
+            serverUrl = Strings.ToString(request.server)
+            token = Strings.ToString(request.token)
+        end if
+
+        if meta.rowType = "SliderRow" and serverUrl <> "" then
+            itemId = Strings.ToString(item.Id)
+            if item.BackdropImageTags <> invalid and item.BackdropImageTags.Count() > 0 then
+                return serverUrl + "/Items/" + itemId + "/Images/Backdrop?maxWidth=1920&quality=95&api_key=" + token
+            end if
+            return serverUrl + "/Items/" + itemId + "/Images/Thumb?maxWidth=1920&quality=95&api_key=" + token
+        end if
+
+        if meta.rowType = "MyMedia" then
+            imageUrl = getItemImageUrl(item, VideoCardPresentation.Type.Poster)
+            if imageUrl <> "" then return imageUrl
+        end if
+
+        if imageAspect = VideoCardPresentation.Type.Thumbnail and serverUrl <> "" then
+            targetId = Strings.ToString(item.Id)
+            if item.ParentThumbItemId <> invalid and Strings.ToString(item.ParentThumbItemId) <> "" then
+                return serverUrl + "/Items/" + Strings.ToString(item.ParentThumbItemId) + "/Images/Thumb?maxWidth=800&quality=95&api_key=" + token
+            end if
+            if item.ImageTags <> invalid and item.ImageTags.Thumb <> invalid then
+                return serverUrl + "/Items/" + targetId + "/Images/Thumb?maxWidth=800&quality=95&api_key=" + token
+            end if
+            if item.BackdropImageTags <> invalid and item.BackdropImageTags.Count() > 0 then
+                return serverUrl + "/Items/" + targetId + "/Images/Backdrop?maxWidth=800&quality=95&api_key=" + token
+            end if
+        end if
     end if
 
     imageUrl = getItemImageUrl(item, imageAspect)

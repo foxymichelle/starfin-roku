@@ -9,6 +9,8 @@ import "pkg:/source/ResolutionAssets.bs"
 sub init()
     m.titleLabel = m.top.findNode("titleLabel")
     m.items = m.top.findNode("items")
+    m.cfSliderTimer = m.top.findNode("cfSliderTimer")
+    m.cfSliderIndex = 0
     m.focusState = {
         isHd: ResolutionProfile.IsHd()
         layoutFilename: ""
@@ -18,6 +20,9 @@ sub init()
     m.items.observeField("rowItemFocused", "onRowItemFocused")
     m.items.observeField("focusExitUp", "onFocusExitUp")
     m.items.observeField("focusExitDown", "onFocusExitDown")
+    if m.cfSliderTimer <> invalid then
+        m.cfSliderTimer.observeField("fire", "onCfSliderTimerFire")
+    end if
     onFocusExitAvailabilityChanged()
 end sub
 
@@ -110,6 +115,14 @@ sub onRowContentChanged()
     content.appendChild(rowContent)
     m.items.content = content
     if targetIndex >= 0 then m.items.jumpToRowItem = [0, targetIndex]
+    if m.cfSliderTimer <> invalid then
+        m.cfSliderIndex = 0
+        if LCase(Strings.ToString(rowContent.rowKey)).Instr("sliderrow") >= 0 and rowContent.getChildCount() > 1 then
+            m.cfSliderTimer.control = "start"
+        else
+            m.cfSliderTimer.control = "stop"
+        end if
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -131,6 +144,14 @@ end sub
 ' onRowItemFocused
 '-------------------------------------------------------------------------------
 sub onRowItemFocused()
+    if m.cfSliderTimer <> invalid and m.cfSliderTimer.control = "start" then
+        focused = m.items.rowItemFocused
+        if focused <> invalid and focused.Count() > 1 then
+            m.cfSliderIndex = Number.ToInteger(focused[1], 0)
+        end if
+        m.cfSliderTimer.control = "stop"
+        m.cfSliderTimer.control = "start"
+    end if
     applyFocusBitmapUri()
 end sub
 
@@ -183,4 +204,25 @@ end sub
 '-------------------------------------------------------------------------------
 sub onFocusExitDown()
     m.top.focusExitDown = true
+end sub
+
+'-------------------------------------------------------------------------------
+' onCfSliderTimerFire
+'-------------------------------------------------------------------------------
+sub onCfSliderTimerFire()
+    rowContent = m.top.rowContent
+    if rowContent = invalid or m.items = invalid then return
+
+    count = rowContent.getChildCount()
+    if count <= 1 then return
+
+    focused = m.items.rowItemFocused
+    if focused <> invalid and focused.Count() > 1 then
+        m.cfSliderIndex = Number.ToInteger(focused[1], 0)
+    end if
+
+    m.cfSliderIndex = m.cfSliderIndex + 1
+    if m.cfSliderIndex >= count then m.cfSliderIndex = 0
+
+    m.items.jumpToRowItem = [0, m.cfSliderIndex]
 end sub

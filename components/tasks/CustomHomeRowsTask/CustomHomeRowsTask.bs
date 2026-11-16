@@ -33,43 +33,76 @@ sub executeRequest()
         userId = TaskRequest.GetUserId(request)
         headers = JellyfinAuth.BuildTokenHeaders(request.token)
 
-        configUrl = request.server + "/web/custom-home-rows.json?t=" + CreateObject("roDateTime").AsSeconds().ToStr()
-        configResponse = HttpClient.Request(configUrl, "GET", invalid, invalid, headers)
+        apiUrl = request.server + "/CopperFoxHome/Rows?userId=" + userId + "&t=" + CreateObject("roDateTime").AsSeconds().ToStr()
+        if request.rowIndex <> invalid then
+            apiUrl = apiUrl + "&rowIndex=" + Strings.ToString(request.rowIndex) + "&skip=" + Strings.ToString(Number.ToInteger(request.skip, 0))
+        end if
+        apiResponse = HttpClient.Request(apiUrl, "GET", invalid, invalid, headers)
 
         rowsOutput = []
-        if configResponse.ok = true and configResponse.data <> invalid and Type(configResponse.data) = "roArray" then
-            for each rowDef in configResponse.data
+        if apiResponse.ok = true and apiResponse.data <> invalid and Type(apiResponse.data.rows) = "roArray" then
+            for each rowDef in apiResponse.data.rows
                 if Type(rowDef) <> "roAssociativeArray" then continue for
-                collectionId = Strings.ToString(rowDef.id)
-                if collectionId = "" then continue for
+                if Strings.ToString(rowDef.rowType) = "StreamingServices" then continue for
+
+                rawItems = rowDef.items
+                if Type(rawItems) <> "roArray" or rawItems.Count() = 0 then continue for
 
                 rowTitle = Strings.ToString(rowDef.title)
-                if rowTitle = "" then rowTitle = "Collection"
+                if rowTitle = "" then rowTitle = "Row"
+                isThumb = (LCase(Strings.ToString(rowDef.imageStyle)) = "thumb")
+                isContinue = (Strings.ToString(rowDef.rowType) = "ContinueAndUpNext")
 
-                params = {
-                    ParentId: collectionId
-                    SortBy: Strings.ToString(rowDef.sortBy)
-                    SortOrder: Strings.ToString(rowDef.sortOrder)
-                    Limit: Number.ToInteger(rowDef.limit, 25)
-                    Fields: "PrimaryImageAspectRatio,Overview"
-                    ImageTypeLimit: 1
-                    EnableImageTypes: Strings.Join([JellyfinImage.Type.Primary, JellyfinImage.Type.Backdrop, JellyfinImage.Type.Thumb, JellyfinImage.Type.Logo])
-                }
-                if params.SortBy = "" then params.SortBy = "SortName"
-                if params.SortOrder = "" then params.SortOrder = "Ascending"
+                processedItems = []
+                for each item in rawItems
+                    if Type(item) <> "roAssociativeArray" then continue for
 
-                itemsUrl = request.server + "/Users/" + userId + "/Items" + Url.BuildQueryString(params)
-                itemsResponse = HttpClient.Request(itemsUrl, "GET", invalid, invalid, headers)
-                if itemsResponse.ok = true and itemsResponse.data <> invalid then
-                    items = ApiPayload.GetItems(itemsResponse.data)
-                    if items <> invalid and items.Count() > 0 then
-                        rowsOutput.Push({
-                            key: "customRow_" + collectionId
-                            title: rowTitle
-                            items: items
-                        })
+                    ' Route episodes directly to parent Series on Roku
+                    if item.SeriesId <> invalid and Strings.ToString(item.SeriesId) <> "" then
+                        item.Id = Strings.ToString(item.SeriesId)
+                        item.Type = "Series"
+                        if item.SeriesName <> invalid and Strings.ToString(item.SeriesName) <> "" then
+                            item.Name = Strings.ToString(item.SeriesName)
+                        end if
                     end if
+
+                    ' Build permanent Roku badge text
+                    badgeText = ""
+                    if isContinue and item.ParentIndexNumber <> invalid and item.IndexNumber <> invalid then
+                        badgeText = "S" + Strings.ToString(item.ParentIndexNumber) + ":E" + Strings.ToString(item.IndexNumber)
+                    else if (Strings.ToString(item.Type) = "Series" or Strings.ToString(item.Type) = "Episode") and item.IsDiscover <> true and item.ChildCount <> invalid and item.RecursiveItemCount <> invalid then
+                        badgeText = Strings.ToString(item.ChildCount) + "S | " + Strings.ToString(item.RecursiveItemCount) + "E"
+                    end if
+
+                    item.cfBadgeText = badgeText
+                    item.cfIsThumb = isThumb
+                    item.cfIsDiscover = (item.IsDiscover = true)
+                    item.cfRowType = Strings.ToString(rowDef.rowType)
+                    processedItems.Push(item)
+                end for
+
+                if rowDef.hasMore = true then
+                    processedItems.Push({
+                        Id: "CF_LOAD_MORE"
+                        Name: "MORE"
+                        Type: "CfLoadMore"
+                        cfIsLoadMore: true
+                        cfRowIndex: rowDef.rowIndex
+                        cfRowKey: Strings.ToString(rowDef.key)
+                        cfNextSkip: processedItems.Count()
+                        cfIsThumb: isThumb
+                    })
                 end if
+
+                rowsOutput.Push({
+                    key: Strings.ToString(rowDef.key)
+                    title: rowTitle
+                    rowType: Strings.ToString(rowDef.rowType)
+                    imageStyle: Strings.ToString(rowDef.imageStyle)
+                    hasMore: (rowDef.hasMore = true)
+                    rowIndex: rowDef.rowIndex
+                    items: processedItems
+                })
             end for
         end if
 
@@ -79,3 +112,4 @@ sub executeRequest()
         m.top.response = TaskResponse.Success(m.top.request, "customHomeRows", { rows: [] })
     end try
 end sub
+

@@ -1,13 +1,32 @@
 import "pkg:/source/VideoCardPresentation.bs"
+import "pkg:/source/String.bs"
 
 '-------------------------------------------------------------------------------
 ' init
 '-------------------------------------------------------------------------------
 sub init()
+    m.presentationHost = m.top.findNode("presentationHost")
+    m.cfBadgeGroup = m.top.findNode("cfBadgeGroup")
+    m.cfBadgeBg = m.top.findNode("cfBadgeBg")
+    m.cfBadgeLabel = m.top.findNode("cfBadgeLabel")
+    m.cfMoreGroup = m.top.findNode("cfMoreGroup")
+    m.cfMoreBg = m.top.findNode("cfMoreBg")
+    m.cfMoreLabel = m.top.findNode("cfMoreLabel")
+    m.cfSliderGroup = m.top.findNode("cfSliderGroup")
+    m.cfSliderFocusBorder = m.top.findNode("cfSliderFocusBorder")
+    m.cfSliderPoster = m.top.findNode("cfSliderPoster")
+    m.cfSliderTitle = m.top.findNode("cfSliderTitle")
+    m.cfSliderOverview = m.top.findNode("cfSliderOverview")
+    m.cfSliderScrim = m.top.findNode("cfSliderScrim")
+
+    if m.cfSliderPoster <> invalid then m.cfSliderPoster.translation = [ 4, 4 ]
+    if m.cfSliderScrim <> invalid then m.cfSliderScrim.translation = [ 4, 406 ]
+    if m.cfSliderTitle <> invalid then m.cfSliderTitle.translation = [ 44, 418 ]
+    if m.cfSliderOverview <> invalid then m.cfSliderOverview.translation = [ 44, 464 ]
+
     m.presentationState = { node: invalid, componentName: "" }
     replacePresentation("VideoPosterCard")
 
-    ' Observe only after initialization, then render any already assigned fields.
     m.top.observeField("itemContent", "onItemContentChanged")
     m.top.observeField("itemHasFocus", "onItemFocusChanged")
     onItemContentChanged()
@@ -21,14 +40,70 @@ sub onItemContentChanged()
     item = m.top.itemContent
     if item = invalid then
         m.presentationState.node.itemContent = invalid
+        m.cfBadgeGroup.visible = false
+        m.cfMoreGroup.visible = false
+        if m.cfSliderGroup <> invalid then m.cfSliderGroup.visible = false
         return
     end if
+
+    isThumb = (VideoCardPresentation.Normalize(item.imageAspect) = VideoCardPresentation.Type.Thumbnail)
+    cardW = 270
+    cardH = 405
+    if isThumb then
+        cardW = 459
+        cardH = 258
+    end if
+
+    raw = item.raw
+    if raw <> invalid and raw.cfIsLoadMore = true then
+        m.presentationHost.visible = false
+        m.cfBadgeGroup.visible = false
+        if m.cfSliderGroup <> invalid then m.cfSliderGroup.visible = false
+        m.cfMoreGroup.visible = true
+        m.cfMoreBg.width = cardW
+        m.cfMoreBg.height = cardH
+        m.cfMoreLabel.width = cardW
+        m.cfMoreLabel.height = cardH
+        return
+    end if
+
+    if raw <> invalid and Strings.ToString(raw.cfRowType) = "SliderRow" then
+        m.presentationHost.visible = false
+        m.cfBadgeGroup.visible = false
+        m.cfMoreGroup.visible = false
+        if m.cfSliderGroup <> invalid then m.cfSliderGroup.visible = true
+        if m.cfSliderPoster <> invalid then m.cfSliderPoster.uri = item.HDPosterUrl
+        if m.cfSliderTitle <> invalid then m.cfSliderTitle.text = Strings.ToString(raw.Name)
+        if m.cfSliderOverview <> invalid then m.cfSliderOverview.text = Strings.ToString(raw.Overview)
+        return
+    end if
+
+    m.cfMoreGroup.visible = false
+    if m.cfSliderGroup <> invalid then m.cfSliderGroup.visible = false
+    m.presentationHost.visible = true
 
     componentName = getPresentationComponentName(VideoCardPresentation.Normalize(item.imageAspect))
     if componentName <> m.presentationState.componentName then replacePresentation(componentName)
 
     m.presentationState.node.itemContent = invalid
     m.presentationState.node.itemContent = item
+
+    badgeText = ""
+    if raw <> invalid and raw.cfBadgeText <> invalid then
+        badgeText = Strings.ToString(raw.cfBadgeText)
+    end if
+
+    if badgeText <> "" then
+        badgeW = (Len(badgeText) * 13) + 24
+        if badgeW < 72 then badgeW = 72
+        m.cfBadgeBg.width = badgeW
+        m.cfBadgeLabel.width = badgeW
+        m.cfBadgeLabel.text = badgeText
+        m.cfBadgeGroup.translation = [cardW - badgeW - 12, 12]
+        m.cfBadgeGroup.visible = true
+    else
+        m.cfBadgeGroup.visible = false
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -44,12 +119,12 @@ end function
 ' replacePresentation
 '-------------------------------------------------------------------------------
 sub replacePresentation(componentName as string)
-    if m.presentationState.node <> invalid then m.top.removeChild(m.presentationState.node)
+    if m.presentationState.node <> invalid then m.presentationHost.removeChild(m.presentationState.node)
 
     presentation = CreateObject("roSGNode", componentName)
     presentation.id = "presentation"
     presentation.itemHasFocus = m.top.itemHasFocus
-    m.top.appendChild(presentation)
+    m.presentationHost.appendChild(presentation)
     m.presentationState.node = presentation
     m.presentationState.componentName = componentName
 end sub
@@ -58,5 +133,17 @@ end sub
 ' onItemFocusChanged
 '-------------------------------------------------------------------------------
 sub onItemFocusChanged()
-    m.presentationState.node.itemHasFocus = m.top.itemHasFocus
+    if m.presentationState.node <> invalid then
+        m.presentationState.node.itemHasFocus = m.top.itemHasFocus
+    end if
+    if m.cfSliderGroup <> invalid and m.cfSliderGroup.visible and m.cfSliderFocusBorder <> invalid then
+        m.cfSliderFocusBorder.visible = m.top.itemHasFocus
+    end if
+    if m.cfMoreGroup.visible then
+        if m.top.itemHasFocus then
+            m.cfMoreBg.color = "0x333333FF"
+        else
+            m.cfMoreBg.color = "0x1C1C1CFF"
+        end if
+    end if
 end sub

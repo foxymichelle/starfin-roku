@@ -6,6 +6,12 @@ individual Starfin features.
 
 ## Table of Contents
 
+- [Collection Browse Preferences](collection-browse-preferences.md)
+
+- [System Information](system-information.md)
+
+- [Jellyfin Home Layout](home-layout.md)
+
 - [Trailers](trailers.md)
 
 - [Settings Cards](settings-cards.md)
@@ -13,6 +19,7 @@ individual Starfin features.
 - [Movie Extras](movie-extras.md)
 
 - [Account Badge](account-badge.md)
+- [Startup Account Selection and Multi-Server Switching](account-selection.md)
 - [Activity Logging](activity-logging.md)
 - [Sending Logs to Jellyfin](log-upload.md)
 - [Audio Playback](audio-playback.md)
@@ -25,6 +32,7 @@ individual Starfin features.
 - [Episode Detail Browsing](episode-detail-browsing.md)
 - [Home Media Playback](home-media.md)
 - [Home Refresh Lifecycle](home-refresh-lifecycle.md)
+- [Combined Home Watching Row](combined-home-watching.md)
 - [Header Navigation](header-navigation.md)
 - [Library Genre Browsing](library-genre-browsing.md)
 - [List and Grid Item Initialization](list-item-initialization.md)
@@ -47,7 +55,7 @@ individual Starfin features.
 - [Search](search.md)
 - [Sign In and Unified Server Picker](sign-in.md)
 - [Settings Migrations](settings-migrations.md)
-- [Settings Presentation and Lazy Category Lifecycle](settings-presentation.md)
+- [Settings Presentation, Category Registration and Lazy Lifecycle](settings-presentation.md)
 - [Media Shell Layout Preferences](media-shell-layout.md)
 - [Themes](themes.md)
 - [Theme Songs](theme-songs.md)
@@ -60,7 +68,7 @@ individual Starfin features.
 - [Automatic Subtitles](automatic-subtitles.md)
 - [Jellyfin Account Subtitle Settings](account-subtitle-settings.md)
 - [Video Playback Lifecycle](video-playback-lifecycle.md)
-- [Video Playback Options](video-playback-options.md)
+- [Video Playback Options and Per-Title Bitrate](video-playback-options.md)
 
 - [Message Dialog](message-dialog.md)
 

@@ -3,6 +3,92 @@ namespace tests
     @suite("Authentication store helpers")
     class AuthStoreTests extends rooibos.BaseTestSuite
 
+        protected override function beforeEach()
+            m.registrySnapshots = {}
+            getGlobalAa().Delete("authStoreRegistryFixture")
+        end function
+
+        protected override function afterEach()
+            getGlobalAa().Delete("authStoreRegistryFixture")
+            registry = CreateObject("roRegistry")
+            for each name in m.registrySnapshots
+                registry.Delete(name)
+                values = m.registrySnapshots[name]
+                if values.Count() > 0 then
+                    section = CreateObject("roRegistrySection", name)
+                    section.WriteMulti(values)
+                    section.Flush()
+                end if
+            end for
+            registry.Flush()
+        end function
+
+        function accountFixture() as object
+            activeKey = "rooibos-account.invalid/user"
+            otherKey = "rooibos-account.invalid/other"
+            for each name in ["STARFIN_ROKU", RegistryStore.AccountSectionName(activeKey), RegistryStore.AccountSectionName(otherKey)]
+                section = CreateObject("roRegistrySection", name)
+                m.registrySnapshots[name] = section.ReadMulti(section.GetKeyList())
+                if name <> "STARFIN_ROKU" then
+                    registry = CreateObject("roRegistry")
+                    registry.Delete(name)
+                end if
+            end for
+            account = CreateObject("roRegistrySection", RegistryStore.AccountSectionName(activeKey))
+            account.WriteMulti({ server: "https://rooibos-account.invalid/Media", "user-id": "user", username: "User", token: "saved-token", theme: "grey", "library-view": "saved-view" })
+            account.Flush()
+            globalStore = CreateObject("roRegistrySection", "STARFIN_ROKU")
+            globalStore.Write("active-account-key", activeKey)
+            globalStore.Flush()
+            return { activeKey: activeKey, otherKey: otherKey, account: account }
+        end function
+
+        @describe("forgetting the last-used account")
+
+        @it("protects the active account by default")
+        function _()
+            fixture = m.accountFixture()
+
+            m.assertFalse(AuthStore.ForgetAccount(fixture.activeKey))
+            m.assertEqual(AuthStore.GetActiveAccountKey(), fixture.activeKey)
+            m.assertNotInvalid(AuthStore.LoadAccount(fixture.activeKey))
+        end function
+
+        @it("clears the last-used reference after confirmed startup removal")
+        function _()
+            fixture = m.accountFixture()
+
+            m.assertTrue(AuthStore.ForgetAccount(fixture.activeKey, true))
+
+            m.assertEqual(AuthStore.GetActiveAccountKey(), "")
+            m.assertInvalid(AuthStore.LoadAccount(fixture.activeKey))
+        end function
+
+        @it("keeps the last-used reference when deleting another account at startup")
+        function _()
+            fixture = m.accountFixture()
+            section = CreateObject("roRegistrySection", RegistryStore.AccountSectionName(fixture.otherKey))
+            section.Write("user-id", "other")
+            section.Flush()
+
+            m.assertTrue(AuthStore.ForgetAccount(fixture.otherKey, true))
+
+            m.assertEqual(AuthStore.GetActiveAccountKey(), fixture.activeKey)
+        end function
+
+        @it("retains the last-used reference when startup deletion fails")
+        function _()
+            state = m.createAccountRegistry()
+            state.registry.Delete = function(name as string) as boolean
+                return false
+            end function
+
+            m.assertFalse(AuthStore.ForgetAccount(state.activeKey, true))
+
+            m.assertEqual(AuthStore.GetActiveAccountKey(), state.activeKey)
+            m.assertEqual(AuthStore.LoadAccount(state.activeKey, true).token, "account-token")
+        end function
+
         @describe("AuthStore.BuildAccountKey")
 
         @it("normalizes server authorities and user IDs (case 1)")
@@ -28,6 +114,92 @@ namespace tests
         @it("uses an empty user suffix for invalid IDs")
         function _()
             m.assertEqual(AuthStore.BuildAccountKey("example.com", invalid), "example.com/")
+        end function
+
+        @it("preserves the unencoded user ID and its casing")
+        function _()
+            m.assertEqual(AuthStore.BuildAccountKey("https://Example.COM:8096/path", "User/One%"), "example.com:8096/User/One%")
+        end function
+
+        @it("separates users on the same server")
+        function _()
+            m.assertFalse(AuthStore.BuildAccountKey("https://host", "one") = AuthStore.BuildAccountKey("https://host", "two"))
+        end function
+
+        @describe("cross-server enumeration")
+
+        @it("retains account identity and server when listing all saved users")
+        function _()
+            name = RegistryStore.AccountSectionName("rooibos-enumeration/user")
+            section = CreateObject("roRegistrySection", name)
+            saved = section.ReadMulti(section.GetKeyList())
+            section.WriteMulti({ server: "https://other.example", "user-id": "user", username: "Other user", token: "test-token" })
+            section.Flush()
+
+            found = invalid
+            for each account in AuthStore.ListAllAccounts(true)
+                if account.accountKey = "rooibos-enumeration/user" then found = account
+            end for
+
+            registry = CreateObject("roRegistry")
+            registry.Delete(name)
+            if saved.Count() > 0 then
+                restored = CreateObject("roRegistrySection", name)
+                restored.WriteMulti(saved)
+                restored.Flush()
+            end if
+            registry.Flush()
+
+            m.assertNotInvalid(found)
+            if found = invalid then return invalid
+            m.assertEqual(found.server, "https://other.example")
+            m.assertEqual(found.username, "Other user")
+            m.assertEqual(found.userId, "user")
+            m.assertEqual(found.token, "test-token")
+        end function
+
+        @describe("server account identity")
+
+        @it("shares the same key across server paths")
+        function _()
+            m.assertTrue(AuthStore.BuildAccountKey("https://host/a", "user") = AuthStore.BuildAccountKey("https://host/b", "user"))
+        end function
+
+        @it("shares the same key across HTTP and HTTPS")
+        function _()
+            m.assertTrue(AuthStore.BuildAccountKey("http://host", "user") = AuthStore.BuildAccountKey("https://host", "user"))
+        end function
+
+        @it("ignores server path casing")
+        function _()
+            m.assertTrue(AuthStore.BuildAccountKey("https://host/A", "user") = AuthStore.BuildAccountKey("https://host/a", "user"))
+        end function
+
+        @it("preserves port identity")
+        function _()
+            m.assertFalse(AuthStore.BuildAccountKey("http://host:8096", "user") = AuthStore.BuildAccountKey("http://host:8097", "user"))
+        end function
+
+        function createAccountRegistry() as object
+            activeKey = "account.invalid/user"
+            account = {
+                values: { server: "https://account.invalid", "user-id": "user", token: "account-token" }
+                Read: function(key as string) as string
+                    if m.values.DoesExist(key) then return m.values[key]
+                    return ""
+                end function
+            }
+            globalStore = {
+                activeKey: activeKey
+                Read: function(key as string) as string
+                    return m.activeKey
+                end function
+            }
+            sections = { STARFIN_ROKU: globalStore }
+            sections[RegistryStore.AccountSectionName(activeKey)] = account
+            state = { registry: {}, sections: sections, activeKey: activeKey }
+            getGlobalAa().authStoreRegistryFixture = state
+            return state
         end function
 
     end class

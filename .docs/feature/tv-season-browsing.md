@@ -1,5 +1,11 @@
 # TV Season Browsing
 
+Season cards on the series page show the year and total episode count. The
+Seasons request explicitly asks for `ChildCount` and `RecursiveItemCount`, since
+Jellyfin can omit both fields unless requested. The existing card rendering uses
+`RecursiveItemCount` with `ChildCount` as its fallback. This metadata is separate
+from the unwatched episode-count badge.
+
 The TV show page reads the independent TV Series preference and applies Full
 Backdrop or Corner backdrop as selected, both on load and committed settings changes.
 Cinematic is unavailable for series; existing saved values normalize to Corner
@@ -72,6 +78,13 @@ library, search, or person surface. Cancelled, superseded, and repeated response
 cannot trigger a later redirect. The preference is captured when a series opens;
 changing it does not redirect an already open series. Explicit season/episode
 entry and playback routes retain their existing behavior.
+
+When theme music is enabled, MainScene submits the selected series identity to
+ThemeAudioController after opening the shortcut season page. The controller owns
+lookup and playback independently of the removed TVShow. TVSeason has no theme
+task, and the redirect branch does not also emit a normal TVShow theme request.
+Direct season entry remains unchanged. Back and playback use the existing theme
+stop path. See [Theme Songs](theme-songs.md).
 
 The TV settings remain on one page. **TV episode list scroll** and **Show season
 card in episode list** share the top row, the shortcut occupies the middle row,

@@ -166,6 +166,21 @@ Theme.SquareButton palette to fixed tiles, wide-button tints, and active text.
 Header observes theme changes and supplies Theme.AccountBadge colors to the
 badge; AccountBadge continues to own its renderer-compatible compositing.
 
+## Theme audio ownership
+
+ThemeAudioController owns theme-song lookup, stream resolution, and audio playback.
+Movie and TVShow emit source requests with explicit session data and sourceItemId
+after loading eligible metadata. MainScene routes these requests and submits the
+series source after a single-season shortcut opens TVSeason. TVSeason owns no
+theme lookup, and direct season entry does not start theme music.
+
+Lookup and stream resolution have separate correlated latest-request lifecycles
+and bounded task pairs. New source selections invalidate old stream work immediately;
+stop, navigation away, playback, trailer opening, settings disable, and session
+replacement invalidate outstanding work. Theme lookup can survive removal of the
+skipped series page. Trailer closure resubmits the retained source request through
+the normal routing checks.
+
 ## Media flow
 
 Libraries own loading, filtering, paging, and their grid state. Selecting an item
@@ -218,6 +233,21 @@ snapshot without owning navigation destinations.
 VideoPlaybackInfoTask owns direct-launch item hydration before negotiation;
 VideoPlayer retains accepted metadata through its normal recovery lifecycle.
 AudioPlayer continues to own ordered album playback and pause/resume behavior.
+
+## Collection browse preferences
+
+VideoLibrary owns per-collection browse/sort restoration and normalization before
+its initial item request. It saves non-default choices per account and collection,
+and removes the saved preference when the user restores Title, ascending.
+LibraryViewStateStore saves or removes one preference record and skips unchanged
+writes. It enumerates stored preferences directly from registry keys rather than
+maintaining a separate index. Save also deletes any obsolete index in the same
+flush; Remove deletes only the requested preference and reads never perform cleanup.
+Registry operations are assumed available; persistence
+failure does not interrupt browsing or trigger recovery or acknowledgment messages.
+MainScene retains its existing navigation role.
+Other library persistence behavior and collection browse capabilities are unchanged.
+See [Collection Browse Preferences](.docs/feature/collection-browse-preferences.md).
 
 ## Movie supplemental content
 
@@ -367,6 +397,20 @@ refresher only coordinates correlated Task requests; pages merge returned server
 counts into canonical data and existing ContentNodes without changing focus.
 See [Watched Indicators and Unwatched Episode Counts](.docs/feature/watched-indicator.md).
 
+## Startup account selection
+
+MainScene gates startup before authentication when the device-wide account
+selection preference is enabled and multiple signed-in accounts are saved.
+It owns startup route/busy state and a temporary AccountPickerPage in the
+XML-declared startupAccountHost above the background and below Login/overlays; the page
+hosts the same AccountPickerContent as AccountPickerDialog. Shared content
+chooses horizontal avatars for one server and vertical address-bearing rows for
+multiple servers. AuthController enumerates signed-in accounts without exposing
+tokens and retains ownership of authorization and active-account persistence.
+The existing authenticated-session path applies the selected server and account
+settings before Home activation. Deep links stay deferred until authentication.
+See [.docs/feature/account-selection.md](.docs/feature/account-selection.md).
+
 ## Settings registry migrations
 
 `SettingsStore.Load()` synchronously invokes `SettingsMigration.Migrate()` before
@@ -417,3 +461,60 @@ events, without owning report queues or API calls. PlaystateTask remains the API
 boundary, with optional correlation and timeout parameters preserving video callers.
 Home defers listening snapshots while terminal writes are pending. Completion focus
 is established before acknowledgment messages capture their return target.
+
+### Account identity and picker recovery
+
+AuthStore owns account keys in the `<hostname[:port]>/<user-id>` format used by
+Starfin 2.2.1. It normalizes and lowercases the server, removes the HTTP/HTTPS
+protocol and path/query/fragment, retains explicit ports, and appends the user ID
+without encoding or case changes. AuthController loads its saved session directly.
+Picker presentation uses `Url.ServerIdentity` to compare normalized server
+addresses, retaining scheme, port and case-sensitive path distinctions; this
+comparison does not determine account storage keys.
+
+MainScene retains originating surface and selected account identity while a dialog
+switch is pending. Connection failures reopen that picker and restore selection;
+success and expiry clear the pending context. The shared picker owns account
+focus identity and publishes its vertical/horizontal presentation decision.
+Containers choose width and capacity: startup has five horizontal slots, the
+dialog three. Geometry updates do not rebuild list content; forget confirmation
+uses an independent preview.
+
+### Combined Home watching row
+
+HomePage owns separate Continue Watching, Next Up and recent episode history data.
+HomeWatching provides pure deduplication and stable recency ordering; it never
+mutates API data. RecentPlayedEpisodesTask owns the optional history API request,
+using Home's existing correlated refresh lifecycle. The combined presentation
+reuses HomeShelf. The Home-local HomeFocus helper captures, resolves and restores
+one pending return target across playback and row reconciliation; live native
+shelf focus supersedes deferred state. Source-aware projection retains unaffected
+shelf content in separate mode. SettingsContent owns the lazy Home panel, which
+contains the combine preference and the existing episode artwork preference. See
+[Combined Home Watching Row](.docs/feature/combined-home-watching.md).
+
+### Jellyfin Home layout
+
+HomePage owns session-scoped display preferences and the resolved Home layout.
+HomePreferencesTask reads Jellyfin display preferences with explicit session data;
+HomeLayout normalizes slots and derives enabled sections and effective combining.
+Home-local HomeLayoutLoading coordinates loading, fallback, dependencies and order.
+Initial/full refresh resolves preferences before content; playback refresh reuses
+that layout. The same eligibility path gates reconciliation requests. AuthController
+continues to retain library exclusions, and MainScene remains a router. See
+[Home Layout](.docs/feature/home-layout.md).
+
+### Feature authentication and Settings registration
+
+ThemeAudioController and TrailerDialog own rejection of stale authentication
+responses and stop their workflows before emitting authenticationRequired with
+the captured request and response. MainScene observes the controller directly
+and receives trailer events through OverlayHost's existing event routing. It
+matches server, user ID and token to the current session before delegating to
+account expiry. TrailerCatalogTask retains failure metadata. Cleanup tasks remain
+best-effort and do not initiate authentication UI.
+
+SettingsContent owns a single ordered category definition containing presentation
+metadata and user/device membership. List metadata and storage are derived from
+that definition; SettingsNavigation.Category names all existing indices. Local
+category handlers and lazy panel ownership remain unchanged.

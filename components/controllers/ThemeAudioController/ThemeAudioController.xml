@@ -2,11 +2,14 @@
 <component name="ThemeAudioController" extends="Group">
   <script type="text/brightscript" uri="pkg:/components/controllers/ThemeAudioController/ThemeAudioController.bs" />
   <interface>
+    <field id="authenticationRequired" type="assocarray" alwaysNotify="true" />
     <function name="playTheme" />
     <function name="stopTheme" />
   </interface>
   <children>
     <Audio id="audio" />
+    <ThemeSongsTask id="themeSongsTask" />
+    <ThemeSongsTask id="themeSongsTaskAlternate" />
     <ThemeAudioPlaybackInfoTask id="playbackInfoTask" />
     <ThemeAudioPlaybackInfoTask id="playbackInfoTaskAlternate" />
   </children>

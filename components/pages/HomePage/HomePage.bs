@@ -1,7 +1,11 @@
+import "pkg:/source/HomeLayout.bs"
+import "pkg:/components/pages/HomePage/Helpers/HomeLayoutLoading.bs"
 import "pkg:/source/MediaCardContent.bs"
 import "pkg:/source/Playstate.bs"
 import "pkg:/source/HomeRefresh.bs"
+import "pkg:/source/HomeWatching.bs"
 import "pkg:/components/pages/HomePage/Helpers/HomeReconciliation.bs"
+import "pkg:/components/pages/HomePage/Helpers/HomeFocus.bs"
 import "pkg:/source/UnwatchedEpisodeCount.bs"
 import "pkg:/source/RemotePlayback.bs"
 import "pkg:/source/Remote.bs"
@@ -39,8 +43,10 @@ sub init()
         queryId: 0
         sessionKey: ""
         rows: {}
+        watching: { combined: false, history: [] }
+        layout: { preferences: invalid, resolved: HomeLayout.Resolve(invalid, false), loading: false }
         episodeImageMode: SettingsStore.GetSettingValue(m.top.settings, SettingsStore.Key.HomeEpisodeImages)
-        rowOrder: ["libraries", "continueWatching", "continueListening", "nextUp", "liveTvOnNow"]
+        rowOrder: []
         latestLibraries: {}
         latestTasks: []
         sectionItems: {}
@@ -48,7 +54,7 @@ sub init()
         shelfNodes: []
         shelfPositions: []
         focusedShelfIndex: 0
-        playbackOverlay: { open: false, returnTarget: invalid }
+        focus: { playbackOverlayOpen: false, returnTarget: invalid }
         shelfOffsetY: 0
         refresh: {
             initial: false
@@ -88,6 +94,26 @@ end sub
 ' onSettingsChanged
 '-------------------------------------------------------------------------------
 sub onSettingsChanged()
+    resolveHomeLayout()
+    combined = m.homeState.layout.resolved.combined
+    if combined <> m.homeState.watching.combined then
+        m.homeState.watching.combined = combined
+        refreshWatchingRows()
+        if combined then
+            if m.homeState.request <> invalid then
+                m.homeState.sync.revision++
+                HomeRefresh.Require(m.homeState.sync, HomeWatching.Section.History)
+                startDirtyHomeRequests()
+            end if
+        else
+            task = m.tasks[HomeWatching.Section.History]
+            if task <> invalid then cleanupHomeTask(task, HomeWatching.Section.History)
+            m.homeState.sync.required.Delete(HomeWatching.Section.History)
+            m.homeState.sync.attempted.Delete(HomeWatching.Section.History)
+            m.homeState.sync.applied.Delete(HomeWatching.Section.History)
+            markCoreTaskComplete(HomeWatching.Section.History)
+        end if
+    end if
     mode = SettingsStore.GetSettingValue(m.top.settings, SettingsStore.Key.HomeEpisodeImages)
     if mode = m.homeState.episodeImageMode then return
     m.homeState.episodeImageMode = mode
@@ -198,7 +224,8 @@ sub selectHomeMediaItem(item as dynamic)
             if index >= 0 and index < m.homeState.shelfNodes.Count() then
                 rowKey = Strings.ToString(m.homeState.shelfNodes[index].rowContent.rowKey)
             end if
-            m.homeState.playbackOverlay = { open: true, returnTarget: { rowKey: rowKey, itemId: itemId } }
+            m.homeState.focus.playbackOverlayOpen = true
+            captureHomeFocus(rowKey, itemId)
             m.top.overlayRequested = request
         else
             m.top.selectedHomeMediaVideo = { itemId: itemId, item: item }
@@ -299,6 +326,9 @@ sub activate(fullRefresh = false as boolean)
         m.top.visible = true
         refreshHomeData(false)
         focusHome()
+    else if m.homeState.layout.loading then
+        m.top.visible = true
+        focusHome()
     else if hasPendingHomeWork() then
         refreshPlaybackRows(true)
     else
@@ -318,40 +348,17 @@ sub suppressRefreshMessages()
 end sub
 
 '-------------------------------------------------------------------------------
-' focusHome
-'-------------------------------------------------------------------------------
-sub focusHome()
-    refreshEpisodeCounts()
-    if m.homeState.playbackOverlay.open then return
-    if m.homeState.refresh.initial = true then
-        m.top.setFocus(true)
-        return
-    end if
-    target = m.homeState.playbackOverlay.returnTarget
-    m.homeState.playbackOverlay.returnTarget = invalid
-    if target <> invalid then
-        for i = 0 to m.homeState.shelfNodes.Count() - 1
-            if m.homeState.shelfNodes[i].rowContent.rowKey = target.rowKey then
-                focusShelf(i, target.itemId)
-                return
-            end if
-        end for
-    end if
-    if m.homeState.shelfNodes.Count() > 0 then
-        focusShelf(m.homeState.focusedShelfIndex)
-    else
-        m.top.setFocus(true)
-    end if
-end sub
-
-'-------------------------------------------------------------------------------
 ' onLoadRequestChanged
 '-------------------------------------------------------------------------------
 sub onLoadRequestChanged()
-    m.homeState.playbackOverlay = { open: false, returnTarget: invalid }
+    m.homeState.focus = { playbackOverlayOpen: false, returnTarget: invalid }
     invalidateHomeRequests()
     m.homeState.request = m.top.loadRequest
     m.homeState.sessionKey = getHomeSessionKey(m.homeState.request)
+    m.homeState.watching.history = []
+    m.homeState.layout = { preferences: invalid, resolved: HomeLayout.Resolve(invalid, false), loading: false }
+    resolveHomeLayout()
+    m.homeState.watching.combined = m.homeState.layout.resolved.combined
     m.homeState.sync = HomeRefresh.Create()
     m.homeState.sectionItems = {}
     m.homeState.rows = {}
@@ -379,13 +386,7 @@ sub refreshHomeData(blocking = false as boolean)
         ownsSpinner: true
         messages: []
         messagesSuppressed: false
-        pendingCore: {
-            libraries: true
-            continueWatching: true
-            continueListening: true
-            nextUp: true
-            liveTvOnNow: true
-        }
+        pendingCore: {}
     }
     if blocking = true then
         m.top.setFocus(true)
@@ -394,7 +395,9 @@ sub refreshHomeData(blocking = false as boolean)
     end if
 
     m.homeState.rows = {}
-    m.homeState.rowOrder = ["libraries", "continueWatching", "continueListening", "nextUp", "liveTvOnNow"]
+    m.homeState.focus.returnTarget = invalid
+    m.homeState.rowOrder = []
+    m.homeState.layout.latestOrder = []
     m.homeState.latestLibraries = {}
     m.homeState.latestTasks = []
     m.homeState.sectionItems = {}
@@ -408,26 +411,11 @@ sub refreshHomeData(blocking = false as boolean)
     clearRows()
     Spinner.Show()
 
-    for each key in ["libraries", "continueWatching", "continueListening", "nextUp", "liveTvOnNow"]
-        HomeRefresh.Require(m.homeState.sync, key)
-    end for
-    runHomeTask("libraries", "HomeLibrariesTask", "onLibrariesResponse", request)
-    runHomeTask("continueWatching", "ContinueWatchingTask", "onSectionResponse", request)
-    if HomeRefresh.NeedsRefresh(m.homeState.sync, "continueListening", true) then
-        runHomeTask("continueListening", "ContinueListeningTask", "onSectionResponse", request)
-    else
-        m.homeState.refresh.pendingCore.Delete("continueListening")
-    end if
-    runHomeTask("nextUp", "NextUpTask", "onSectionResponse", request)
+    m.homeState.sync.required = {}
+    m.homeState.layout.loading = true
+    m.homeState.refresh.pendingCore[HomeLayout.Action.Preferences] = true
+    runHomeTask(HomeLayout.Action.Preferences, "HomePreferencesTask", "onHomePreferencesResponse", request)
     runHomeTask("customHomeRows", "CustomHomeRowsTask", "onCustomHomeRowsResponse", request)
-    canAccessLiveTv = false
-    if request.permissions <> invalid then canAccessLiveTv = request.permissions.canAccessLiveTv = true
-    if canAccessLiveTv then
-        runHomeTask("liveTvOnNow", "LiveTvOnNowTask", "onSectionResponse", request)
-    else
-        HomeRefresh.Accept(m.homeState.sync, "liveTvOnNow", m.homeState.sync.revision)
-        markCoreTaskComplete("liveTvOnNow")
-    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -435,6 +423,7 @@ end sub
 '-------------------------------------------------------------------------------
 sub refreshPlaybackRows(blocking = false as boolean)
     if m.homeState.request = invalid then return
+    if m.homeState.layout.loading then return
     ' Preserve unfinished work when replacing a refresh generation.
     for each key in m.homeState.refresh.pendingCore
         HomeRefresh.Require(m.homeState.sync, key)
@@ -585,7 +574,7 @@ sub onLibrariesResponse(event as object)
 
     HomeRefresh.Accept(m.homeState.sync, "libraries", task.request.homeRevision)
     libraries = reconcileHomeSnapshot(ApiPayload.GetItems(response.payload), task.request.homeRevision)
-    if m.homeState.customRowMeta = invalid or m.homeState.customRowMeta.Count() = 0 then
+    if (m.homeState.customRowMeta = invalid or m.homeState.customRowMeta.Count() = 0) and isHomeSectionEnabled(HomeLayout.Section.Libraries) then
         addRow("libraries", "My Media", libraries)
         queueLatestMediaRows(libraries)
         renderRows()
@@ -613,18 +602,21 @@ sub onSectionResponse(event as object)
     items = reconcileHomeSnapshot(ApiPayload.GetItems(response.payload), task.request.homeRevision)
     if m.homeState.customRowMeta = invalid or m.homeState.customRowMeta.Count() = 0 then
         if action = "continueWatching" then
-            addRow(action, "Continue Watching", items)
-            refreshNextUpRow()
+            m.homeState.sectionItems.continueWatching = items
+            refreshWatchingRows(action)
         else if action = "continueListening" then
             addRow(action, "Continue Listening", items)
         else if action = "nextUp" then
             m.homeState.sectionItems.nextUp = items
-            refreshNextUpRow()
+            refreshWatchingRows(action)
+        else if action = HomeWatching.Section.History then
+            m.homeState.watching.history = items
+            refreshWatchingRows(action)
         else if action = "liveTvOnNow" then
             addRow(action, "On Now", items)
         end if
 
-        renderRows()
+        if action <> "continueWatching" and action <> "nextUp" and action <> HomeWatching.Section.History then renderRows()
     end if
     markCoreTaskComplete(action)
 end sub
@@ -689,64 +681,9 @@ end sub
 ' getFilteredNextUpItems
 '-------------------------------------------------------------------------------
 function getFilteredNextUpItems() as object
-    nextUpItems = m.homeState.sectionItems.nextUp
-    if nextUpItems = invalid then return []
-
-    continueWatchingKeys = buildContinueWatchingKeys()
-    if continueWatchingKeys.Count() = 0 then return nextUpItems
-
-    filteredItems = []
-    for each item in nextUpItems
-        if Arrays.IsAssocArray(item) = false then continue for
-        if hasAnyItemKey(item, continueWatchingKeys) then continue for
-
-        filteredItems.Push(item)
-    end for
-
-    return filteredItems
-end function
-
-'-------------------------------------------------------------------------------
-' buildContinueWatchingKeys
-'-------------------------------------------------------------------------------
-function buildContinueWatchingKeys() as object
-    keys = {}
-    continueWatchingItems = m.homeState.sectionItems.continueWatching
-    if continueWatchingItems = invalid then return keys
-
-    for each item in continueWatchingItems
-        addItemKeys(keys, item)
-    end for
-
-    return keys
-end function
-
-'-------------------------------------------------------------------------------
-' addItemKeys
-'-------------------------------------------------------------------------------
-sub addItemKeys(keys as object, item as dynamic)
-    if Arrays.IsAssocArray(item) = false then return
-
-    itemId = Format.FirstNonEmpty([item.Id], "")
-    if itemId <> "" then keys["item:" + itemId] = true
-
-    seriesId = Format.FirstNonEmpty([item.SeriesId], "")
-    if seriesId <> "" then keys["series:" + seriesId] = true
-end sub
-
-'-------------------------------------------------------------------------------
-' hasAnyItemKey
-'-------------------------------------------------------------------------------
-function hasAnyItemKey(item as dynamic, keys as object) as boolean
-    if Arrays.IsAssocArray(item) = false then return false
-
-    itemId = Format.FirstNonEmpty([item.Id], "")
-    if itemId <> "" and keys.DoesExist("item:" + itemId) then return true
-
-    seriesId = Format.FirstNonEmpty([item.SeriesId], "")
-    if seriesId <> "" and keys.DoesExist("series:" + seriesId) then return true
-
-    return false
+    resumeItems = invalid
+    if isHomeSectionEnabled(HomeLayout.Section.Watching) then resumeItems = m.homeState.sectionItems.continueWatching
+    return HomeWatching.FilterNextUp(resumeItems, m.homeState.sectionItems.nextUp)
 end function
 
 '-------------------------------------------------------------------------------
@@ -780,6 +717,7 @@ function getHomeErrorMessage(response as object, libraryName = "" as string) as 
         continueListening: "Continue Listening"
         nextUp: "Next Up"
         liveTvOnNow: "On Now"
+        recentPlayedEpisodes: "recent viewing history"
         latestMedia: "Recently Added"
     }
     section = Strings.ToString(sections[Strings.ToString(response.action)], "a Home section")
@@ -803,6 +741,7 @@ sub queueLatestMediaRows(libraries as object)
     end if
 
     for each item in libraries
+        if not isHomeSectionEnabled(HomeLayout.Section.Latest) then exit for
         if Arrays.IsAssocArray(item) = false then continue for
         if excludedIds.DoesExist(Strings.ToString(item.Id)) then continue for
 
@@ -827,9 +766,16 @@ sub queueLatestMediaRows(libraries as object)
     end for
 
 
-    m.homeState.rowOrder = ["libraries", "continueWatching", "continueListening", "nextUp"]
+    existingCustomKeys = []
+    for each existingKey in m.homeState.rowOrder
+        if Left(existingKey, 6) = "cfRow_" or Left(existingKey, 10) = "customRow_" then
+            existingCustomKeys.Push(existingKey)
+        end if
+    end for
+
+    m.homeState.layout.latestOrder = []
     for each library in latestLibraries
-        m.homeState.rowOrder.Push("latest:" + library.id)
+        m.homeState.layout.latestOrder.Push("latest:" + library.id)
         HomeRefresh.Require(m.homeState.sync, "latest:" + library.id)
     end for
     m.homeState.rowOrder.Push("liveTvOnNow")
@@ -966,6 +912,7 @@ end function
 ' renderRows
 '-------------------------------------------------------------------------------
 sub renderRows()
+    captureHomeFocus()
     hadFocus = m.top.isInFocusChain()
     existingShelves = {}
     selectedKey = ""
@@ -1027,20 +974,20 @@ sub renderRows()
     end for
 
     m.homeState.shelfNodes = shelfNodes
+    target = resolveHomeFocus()
+    m.homeState.focusedShelfIndex = target.index
     refreshEpisodeCounts()
     m.homeState.shelfPositions = shelfPositions
-    if m.homeState.focusedShelfIndex >= shelfNodes.Count() then
-        m.homeState.focusedShelfIndex = shelfNodes.Count() - 1
-    end if
-    if m.homeState.focusedShelfIndex < 0 then m.homeState.focusedShelfIndex = 0
     updateShelfScroll(false)
 
     if hasRenderedRows() then
         if m.homeState.refresh.initial <> true and m.homeState.refresh.blocking <> true then stopHomeLoading()
         ' Only the surface that already owned focus may restore it after row removal.
-        if hadFocus and m.top.visible and m.homeState.refresh.blocking <> true then focusShelf(m.homeState.focusedShelfIndex)
+        if hadFocus and m.top.visible and m.homeState.refresh.blocking <> true then
+            restoreHomeFocus()
+        end if
     else if hadFocus and m.top.visible then
-        m.top.setFocus(true)
+        restoreHomeFocus()
     end if
 end sub
 
@@ -1071,6 +1018,7 @@ end sub
 ' finishHomeRefreshIfReady
 '-------------------------------------------------------------------------------
 sub finishHomeRefreshIfReady()
+    if m.homeState.layout.loading then return
     if m.homeState.refresh.pendingCore.Count() > 0 then return
     startDirtyHomeRequests()
     if m.homeState.refresh.pendingCore.Count() > 0 then return
@@ -1193,23 +1141,6 @@ function moveShelfFocus(delta as integer) as boolean
     focusShelf(targetIndex)
     return true
 end function
-
-'-------------------------------------------------------------------------------
-' focusShelf
-'-------------------------------------------------------------------------------
-sub focusShelf(index as integer, itemId = "" as string)
-    if m.homeState.refresh.initial = true then return
-    if m.homeState.playbackOverlay.open then return
-    if m.homeState.shelfNodes.Count() = 0 then return
-    if index < 0 then index = 0
-    if index >= m.homeState.shelfNodes.Count() then index = m.homeState.shelfNodes.Count() - 1
-
-    m.homeState.focusedShelfIndex = index
-    updateShelfScroll(true)
-
-    shelf = m.homeState.shelfNodes[index]
-    if shelf <> invalid then shelf.callFunc("activate", itemId)
-end sub
 
 '-------------------------------------------------------------------------------
 ' updateShelfScroll
@@ -1667,7 +1598,7 @@ end sub
 ' handlePlaybackOverlayClosed
 '-------------------------------------------------------------------------------
 sub handlePlaybackOverlayClosed(selection as dynamic)
-    m.homeState.playbackOverlay.open = false
+    m.homeState.focus.playbackOverlayOpen = false
     if selection <> invalid then
         m.top.selectedHomeMediaVideo = selection
     else
@@ -1684,7 +1615,7 @@ function playFocusedMedia() as boolean
     if shelf.isInFocusChain() <> true or Strings.ToString(shelf.rowContent.rowKey) = "libraries" then return false
     selection = RemotePlayback.BuildSelection(shelf.callFunc("getFocusedItem"))
     if selection = invalid then return false
-    m.homeState.playbackOverlay.returnTarget = { rowKey: Strings.ToString(shelf.rowContent.rowKey), itemId: selection.itemId }
+    captureHomeFocus(Strings.ToString(shelf.rowContent.rowKey), selection.itemId)
     m.top.playbackSelected = selection
     return true
 end function
@@ -1730,4 +1661,30 @@ sub onEpisodeCountsRefreshed()
             end for
         end if
     end for
+end sub
+
+'-------------------------------------------------------------------------------
+' refreshWatchingRows
+'-------------------------------------------------------------------------------
+sub refreshWatchingRows(changedSection = "" as string)
+    if m.homeState.watching.combined then
+        resumeItems = m.homeState.sectionItems.continueWatching
+        items = HomeWatching.Combine(resumeItems, m.homeState.sectionItems.nextUp, m.homeState.watching.history)
+        setHomeRowContent("continueWatching", "Continue Watching & Next Up", items)
+        m.homeState.rows.Delete("nextUp")
+    else
+        if changedSection = HomeWatching.Section.History then return
+        if isHomeSectionEnabled(HomeLayout.Section.Watching) and (changedSection = "" or changedSection = "continueWatching") then
+            resumeItems = m.homeState.sectionItems.continueWatching
+            if resumeItems = invalid then resumeItems = []
+            setHomeRowContent("continueWatching", "Continue Watching", resumeItems)
+        end if
+        if not isHomeSectionEnabled(HomeLayout.Section.Watching) then m.homeState.rows.Delete("continueWatching")
+        if isHomeSectionEnabled(HomeLayout.Section.NextUp) then
+            setHomeRowContent("nextUp", "Next Up", getFilteredNextUpItems())
+        else
+            m.homeState.rows.Delete("nextUp")
+        end if
+    end if
+    renderRows()
 end sub

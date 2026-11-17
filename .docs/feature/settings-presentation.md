@@ -39,7 +39,7 @@ highlight.
 ## Categories and cards
 
 Current user contains Libraries, Media shell, Theme, Playback, Subtitles,
-TV, and Screensaver. All seven rows are visible. The Device heading is
+TV, Home, and Screensaver. All eight rows are visible. The Device heading is
 at y=488 and its three-row list starts at y=522: General, Video, and Advanced.
 Category navigation wraps across both lists: Up from Libraries moves to Advanced,
 and Down from Advanced moves to Libraries, updating the displayed panel with focus.
@@ -136,9 +136,32 @@ a 16px gap and remain 240px tall. Count choices are **Off** (default),
 the first option returns to Theme, and Left from the watched card returns to
 categories. Editor focus restoration retains the selected card.
 
-The TV category uses its original full-width single-page layout: **TV episode
-list scroll**, **Show season summary card in TV episode list**, then **TV artwork
-in "Next Up" and "Continue Watching"**. Paging controls and fades are removed.
+The TV category uses a single page with paired episode-scroll and season-card
+controls above **Skip series page for single-season shows**. Home episode artwork
+now lives in the Home category. Neither category uses paging controls or fades.
 
 Count selections preview through the Settings overlay and persist per account
 on close. See [Watched Indicators and Unwatched Episode Counts](watched-indicator.md).
+
+## Home preferences
+
+Home follows TV and contains the account-specific combine option above the existing
+episode artwork preference. TV retains episode scrolling, season cards and the
+single-season shortcut. Panels retain lazy initialization and generic vertical
+radio navigation. See [Combined Home Watching Row](combined-home-watching.md).
+
+## Category registration
+
+SettingsContent keeps one ordered definition for category titles, panel component
+names, panel IDs and device/user membership. It derives list titles, counts,
+offsets and panel/control storage from that definition. All category dispatch
+uses the complete SettingsNavigation.Category constants, preserving indices
+0 through 10 and the existing order. User categories precede device categories
+in the definition, matching the navigation offset contract.
+
+Category-specific references, handlers, options and value application remain
+owned by SettingsContent. Panels are still created lazily and retained, edits
+survive category changes, and subtitle paging, previews, focus restoration and
+Advanced reset confirmation keep their existing behavior. Separate category
+tests exercise list-driven initialization alongside existing navigation and
+retained-state coverage.

@@ -66,6 +66,11 @@ and `people` title arrays. Every case must configure at least one expected title
 The local environment file is ignored by Git and its values must not be printed,
 committed, or included in reports.
 
+Direct test-side Jellyfin requests use the MediaBrowser `Authorization` header
+through `support/jellyfin-auth.mjs`. The configured server rejects the legacy
+`X-Emby-Token` header even for a valid session; a 401 from that test-only request
+does not establish an application authentication defect.
+
 Run the harness with:
 
 ```sh
@@ -74,7 +79,20 @@ npm run automation:test
 
 During development, a focused test can be selected by title without running the
 complete suite, for example `npm run automation:test -- --grep "TV series library"`.
+For staged evidence collection, `--bail` stops execution after the first failure.
+Retain each attempt's report and screenshots, then use `--grep` to select the
+failed and remaining cases after repairing a test defect. `--grep-file <path>`
+accepts the same title pattern
+from a file when the remaining-case list is too long for a convenient command.
+Use either `--grep` or `--grep-file`, not both. A staged result must identify its
+selection, the attempts it combines, and any unexecuted or pending cases; it is not
+a single uninterrupted full-suite pass.
 Release-report mode rejects focused runs and always executes every test.
+
+Playback-stop checks inspect the episode page's incoming `playbackProgressChange`
+handoff. Its outgoing `playbackProgressChanged` event can legitimately be cleared
+when refreshed metadata marks the episode watched, so that event is not durable
+evidence that progress was delivered to the page.
 
 Remote-key tests locate configured items using batches of up to 100 ID reads.
 They rescan current content on each attempt, including same-count replacements,
@@ -131,11 +149,12 @@ allowing the reported connection duration to vary.
 The test then populates the public server, username, and password fields from
 `.env.automation`, captures the populated form with the password masked, selects
 Sign In, waits with bounded polling for Home, and captures final Home evidence.
-Home readiness requires all attached core tasks to finish, the loading
-spinner to clear, at least one shelf to render, no shared status error to remain,
+Home readiness uses the page's `ready` signal, which covers enabled core requests
+and library-dependent Latest Media requests; completed task nodes are detached.
+It also requires the loading spinner to clear, at least one shelf to render,
+no shared status error to remain,
 and the rendered shelf/item fingerprint to stay unchanged for a two-second quiet
-window. That quiet window accounts for per-library Latest Media tasks, which RTA
-does not inspect directly. A short rendering-settle delay follows those
+window. A short rendering-settle delay follows those
 conditions before capture. Secrets are not added to report metadata, though screenshots can show
 the configured server and username.
 
@@ -336,3 +355,18 @@ seeking. After enabling accurate seeking, the same case landed at 10.161 seconds
 the 40-second case landed at 40.045. This verifies the fix on the configured
 development device and fixture, not an exact-seek guarantee for every Roku codec
 and device combination.
+
+## Startup account selection
+
+The account-selection automation suite uses a local HTTP fixture with two server
+base paths, synthetic credentials and controllable delayed/error responses. It
+requires the Roku to reach the runner's selected LAN address, like the existing
+Home-refresh fixture. It snapshots/restores Starfin registry sections per case,
+including the active account and global startup preference. No real Jellyfin
+users are created or modified. See [account selection](account-selection.md#automated-regression-workflows)
+for scenarios and the test-only registry fault-injection design.
+
+`waitForStartup` recognizes Login, ready Home, or the full-screen account picker.
+`ensureAuthenticated` waits for one of those surfaces and uses additional-account
+Login when the picker is present, so ordinary automation never selects an
+arbitrary saved account from another server.

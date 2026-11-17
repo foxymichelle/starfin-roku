@@ -69,11 +69,6 @@ namespace tests
             m.assertNotInvalid(m.top.findNode("movieTaskAlternate"))
         end function
 
-        @it("declares the themeSongsTask node")
-        function _()
-            m.assertNotInvalid(m.top.findNode("themeSongsTask"))
-        end function
-
         @it("declares the watchedTask node")
         function _()
             m.assertNotInvalid(m.top.findNode("watchedTask"))
@@ -374,13 +369,19 @@ namespace tests
         @it("shows only Up for a cinematic extras-only row")
         function _()
             m.node.state.layout.isCinematic = true
-            m.top.findNode("supplements").hasItems = true
+            supplements = m.top.findNode("supplements")
+            supplements.loadRequest = { server: "http://server", token: "token", userId: "user", itemId: "movie", specialFeatureCount: 1 }
+            task = supplements.findNode("extrasTask")
+            if task.request = invalid then task = supplements.findNode("extrasTaskAlternate")
+            task.control = "stop"
+            task.response = { ok: true, action: "movieExtras", itemId: "movie", requestId: task.request.requestId, payload: [{ Id: "extra", Name: "Behind the scenes", Type: "Video" }] }
 
             'bs:disable-next-line 1140
             updateSupplementChevrons(true)
 
             m.assertEqual(m.top.findNode("chevronUpFooter").direction, "")
             m.assertEqual(m.top.findNode("chevronFooter").direction, "up")
+            supplements.loadRequest = invalid
         end function
 
         @it("clears the cinematic pair when returning to movie actions")
@@ -613,7 +614,6 @@ namespace tests
 
             m.assertEqual(m.top.findNode("movieTask").control, "stop")
             m.assertEqual(m.top.findNode("movieTaskAlternate").control, "stop")
-            m.assertEqual(m.top.findNode("themeSongsTask").control, "stop")
             m.assertEqual(m.top.findNode("watchedTask").control, "stop")
         end function
 
@@ -885,6 +885,7 @@ namespace tests
         end function
 
         private sub prepareMediaOptions()
+            m.node.state.maxVideoBitrate = 0
             item = { Id: "options-item", Name: "Options", Type: "Movie", MediaStreams: [{ Type: "Audio", Index: 1, Codec: "aac", Channels: 2 }, { Type: "Audio", Index: 2, Codec: "ac3", Channels: 6 }], Chapters: [{ StartPositionTicks: 600000000 }] }
             m.node.state.mediaInfoPending = false
             m.node.state.selectedStreams = { audio: invalid, subtitle: invalid, subtitleOff: false }
@@ -1482,6 +1483,124 @@ namespace tests
 
             m.assertEqual(m.top.findNode("mediaToolbar").trailerCount, 1)
             m.assertEqual(m.top.findNode("mediaToolbar").findNode("trailerButton").text, "Trailer")
+        end function
+
+        @describe("theme source requests")
+
+        @it("emits the source identity and session for controller-owned theme lookup")
+        function _()
+            AsyncLifecycle.Begin(m.node.state.lifecycle, m.node.state.request.itemId)
+            m.top.settings = { "theme-music": "on" }
+            m.top.themeRequested = invalid
+            item = m.createMovie()
+
+            'bs:disable-next-line 1140
+            requestTheme(item)
+
+            request = m.top.themeRequested
+            m.assertEqual(request.sourceItemId, item.Id)
+            m.assertEqual(request.title, item.Name)
+            m.assertEqual(request.server, m.node.state.request.server)
+            m.assertEqual(request.token, m.node.state.request.token)
+            m.assertEqual(request.userId, m.node.state.request.userId)
+            m.assertInvalid(request.itemId)
+        end function
+
+        @it("does not emit a theme request when music is disabled")
+        function _()
+            AsyncLifecycle.Begin(m.node.state.lifecycle, m.node.state.request.itemId)
+            m.top.settings = { "theme-music": "off" }
+            m.top.themeRequested = invalid
+
+            'bs:disable-next-line 1140
+            requestTheme(m.createMovie())
+
+            m.assertInvalid(m.top.themeRequested)
+        end function
+
+        @it("does not emit a new source request after deactivation")
+        function _()
+            AsyncLifecycle.Begin(m.node.state.lifecycle, m.node.state.request.itemId)
+            m.top.settings = { "theme-music": "on" }
+            'bs:disable-next-line 1140
+            deactivate()
+            m.top.themeRequested = invalid
+
+            'bs:disable-next-line 1140
+            requestTheme(m.createMovie())
+
+            m.assertInvalid(m.top.themeRequested)
+        end function
+
+        @it("does not restart an inactive page theme when settings enable music")
+        function _()
+            m.top.settings = { "theme-music": "off" }
+            AsyncLifecycle.Begin(m.node.state.lifecycle, m.node.state.request.itemId)
+            'bs:disable-next-line 1140
+            deactivate()
+            m.top.themeRequested = invalid
+
+            m.top.settings = { "theme-music": "on" }
+
+            m.assertInvalid(m.top.themeRequested)
+        end function
+
+        @it("requests the active page theme when settings enable music")
+        function _()
+            m.top.settings = { "theme-music": "off" }
+            AsyncLifecycle.Begin(m.node.state.lifecycle, m.node.state.request.itemId)
+            m.top.themeRequested = invalid
+
+            m.top.settings = { "theme-music": "on" }
+
+            item = m.createMovie()
+            m.assertEqual(m.top.themeRequested.sourceItemId, item.Id)
+        end function
+
+        @describe("per-title video bitrate")
+
+        @it("commits the bitrate before chapter playback")
+        function _()
+            m.prepareMediaOptions()
+            m.top.callFunc("handleStreamOptionsOverlayClosed", { request: m.top.overlayRequested, overlay: { result: { maxVideoBitrate: 4000000, chapter: { startPositionTicks: 600000000&, startPositionSeconds: 60 } } } })
+
+            m.assertEqual(m.node.state.maxVideoBitrate, 4000000)
+            m.assertEqual(m.top.playSelected.maxVideoBitrate, 4000000)
+            m.assertEqual(m.top.playSelected.startPositionTicks, 600000000&)
+        end function
+
+        @it("restores the accepted bitrate after returning from playback")
+        function _()
+            m.prepareMediaOptions()
+            m.top.callFunc("applyPlaybackSelection", { itemId: "options-item", maxVideoBitrate: 6000000 })
+
+            'bs:disable-next-line 1140
+            onVideoToolbarMediaInfoSelected()
+
+            m.assertEqual(m.top.overlayRequested.optionsContext.selection.maxVideoBitrate, 6000000)
+        end function
+
+        @it("ignores a bitrate returned from another title")
+        function _()
+            m.prepareMediaOptions()
+            m.node.state.maxVideoBitrate = 4000000
+
+            m.top.callFunc("applyPlaybackSelection", { itemId: "other", maxVideoBitrate: 8000000 })
+
+            m.assertEqual(m.node.state.maxVideoBitrate, 4000000)
+        end function
+
+        @it("resets the bitrate when loading a new title")
+        function _()
+            m.node.state.detailsLoad = LatestRequestLifecycle.Create()
+            LatestRequestLifecycle.Queue(m.node.state.detailsLoad, { itemId: "old-item" })
+            LatestRequestLifecycle.TakeNext(m.node.state.detailsLoad)
+            m.node.state.maxVideoBitrate = 4000000
+            request = { server: "http://server", itemId: "new-item", settings: {}, item: { Id: "new-item", Type: "Movie" } }
+
+            m.top.loadRequest = request
+
+            m.assertEqual(m.node.state.maxVideoBitrate, 0)
         end function
 
     end class

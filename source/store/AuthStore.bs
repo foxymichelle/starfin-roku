@@ -1,4 +1,6 @@
 import "pkg:/source/String.bs"
+import "pkg:/source/Url.bs"
+import "pkg:/source/store/RegistryStore.bs"
 namespace AuthStore
 
     '---------------------------------------------------------------------------
@@ -102,36 +104,6 @@ namespace AuthStore
     end function
 
     '---------------------------------------------------------------------------
-    ' AuthStore.ListAccounts
-    '---------------------------------------------------------------------------
-    function ListAccounts(server as string) as object
-        normalizedServer = LCase(Url.NormalizeServer(server))
-        activeAccountKey = AuthStore.GetActiveAccountKey()
-        accounts = []
-        registry = CreateObject("roRegistry")
-        for each sectionName in registry.GetSectionList()
-            if LCase(Left(sectionName, 16)) = "starfin_account_" then
-                accountKey = Mid(sectionName, 17)
-                account = AuthStore.LoadAccount(accountKey, false)
-                accountStore = CreateObject("roRegistrySection", sectionName)
-                hasToken = accountStore.Read("token") <> ""
-                if account <> invalid and hasToken and LCase(account.server) = normalizedServer then
-                    account.isActive = (accountKey = activeAccountKey)
-                    activeSort = "1"
-                    if account.isActive then activeSort = "0"
-                    account.sortKey = activeSort + "--" + LCase(account.username) + "--" + accountKey
-                    accounts.Push(account)
-                end if
-            end if
-        end for
-        accounts.SortBy("sortKey")
-        for each account in accounts
-            account.Delete("sortKey")
-        end for
-        return accounts
-    end function
-
-    '---------------------------------------------------------------------------
     ' AuthStore.ListAllAccounts
     '---------------------------------------------------------------------------
     function ListAllAccounts(includeToken = false as boolean) as object
@@ -198,13 +170,17 @@ namespace AuthStore
     '---------------------------------------------------------------------------
     ' AuthStore.ForgetAccount
     '---------------------------------------------------------------------------
-    function ForgetAccount(accountKey as string) as boolean
+    function ForgetAccount(accountKey as string, allowActive = false as boolean) as boolean
         if accountKey = "" then return false
-        if AuthStore.GetActiveAccountKey() = accountKey then return false
+        isActive = GetActiveAccountKey() = accountKey
+        if isActive and not allowActive then return false
 
         registry = CreateObject("roRegistry")
         wasDeleted = registry.Delete(RegistryStore.AccountSectionName(accountKey))
-        registry.Flush()
+        if not wasDeleted then return false
+        if not registry.Flush() then return false
+        ' Startup has no authenticated session; only confirmed removal clears its last-used reference.
+        if isActive then ClearActiveAccount()
         return wasDeleted
     end function
 

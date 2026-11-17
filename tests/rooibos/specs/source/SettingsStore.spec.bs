@@ -304,7 +304,7 @@ namespace tests
         function _()
             defaults = SettingsStore.Defaults()
 
-            m.assertEqual(defaults.Count(), 30)
+            m.assertEqual(defaults.Count(), 32)
             m.assertEqual(defaults[SettingsStore.Key.TvLibraryLayout], "poster;6")
             m.assertEqual(defaults[SettingsStore.Key.MovieLibraryLayout], "poster;6")
             m.assertEqual(defaults[SettingsStore.Key.CollectionCardsLayout], "poster;6")
@@ -316,6 +316,7 @@ namespace tests
             m.assertEqual(defaults[SettingsStore.Key.TvEpisodeListDisplay], "vertical")
             m.assertEqual(defaults[SettingsStore.Key.ShowSeasonSummaryCard], "on")
             m.assertEqual(defaults[SettingsStore.Key.SkipSingleSeasonSeries], "off")
+            m.assertEqual(defaults[SettingsStore.Key.CombineContinueWatchingNextUp], "off")
             m.assertEqual(defaults[SettingsStore.Key.HomeEpisodeImages], "series")
             m.assertEqual(defaults[SettingsStore.Key.MovieShellLayout], "full-screen")
             m.assertEqual(defaults[SettingsStore.Key.TvSeriesShellLayout], "partial-screen")
@@ -351,6 +352,7 @@ namespace tests
                 SettingsStore.Key.TvEpisodeListDisplay
                 SettingsStore.Key.ShowSeasonSummaryCard
                 SettingsStore.Key.SkipSingleSeasonSeries
+                SettingsStore.Key.CombineContinueWatchingNextUp
                 SettingsStore.Key.HomeEpisodeImages
                 SettingsStore.Key.MovieShellLayout
                 SettingsStore.Key.TvSeriesShellLayout
@@ -613,7 +615,7 @@ namespace tests
 
         @it("defines the complete global settings scope")
         function _()
-            m.assertEqual(SettingsStore.GlobalKeys(), ["display-account-badge", "video-streaming-mode", "tmdb-api-key"])
+            m.assertEqual(SettingsStore.GlobalKeys(), ["select-account-at-startup", "display-account-badge", "video-streaming-mode", "tmdb-api-key"])
         end function
 
         @it("loads defaults for missing global settings without an account")
@@ -1265,6 +1267,47 @@ namespace tests
         @it("reads an enabled shortcut preference")
         function _()
             m.assertEqual(SettingsStore.GetSettingValue({ "skip-single-season-series": "on" }, SettingsStore.Key.SkipSingleSeasonSeries), "on")
+        end function
+
+        @describe("device startup preference")
+
+        @it("defaults account selection at startup to off")
+        function _()
+            settings = SettingsStore.Defaults()
+            m.assertEqual(settings[SettingsStore.Key.SelectAccountAtStartup], "off")
+        end function
+
+        @it("persists account selection globally across account loads")
+        function _()
+            settings = SettingsStore.Defaults()
+            settings[SettingsStore.Key.SelectAccountAtStartup] = "on"
+
+            m.snapshotMigrationRegistry([RegistryStore.AccountSectionName("rooibos-startup-a"), RegistryStore.AccountSectionName("rooibos-startup-b")])
+            SettingsStore.Save("rooibos-startup-a", settings)
+            loaded = SettingsStore.Load("rooibos-startup-b")
+
+            m.assertEqual(loaded[SettingsStore.Key.SelectAccountAtStartup], "on")
+            m.assertEqual(SettingsStore.LoadGlobal(SettingsStore.Key.SelectAccountAtStartup), "on")
+        end function
+
+        @describe("combined Home preference")
+
+        @it("defaults combining to off")
+        function _()
+            m.assertEqual(SettingsStore.GetSettingValue({}, SettingsStore.Key.CombineContinueWatchingNextUp), "off")
+        end function
+
+        @it("persists combining independently per account")
+        function _()
+            m.snapshotMigrationRegistry([RegistryStore.AccountSectionName("rooibos-combine-a"), RegistryStore.AccountSectionName("rooibos-combine-b"), "STARFIN_ROKU"])
+            settings = SettingsStore.Defaults()
+            settings[SettingsStore.Key.CombineContinueWatchingNextUp] = "on"
+            SettingsStore.Save("rooibos-combine-a", settings)
+            settings[SettingsStore.Key.CombineContinueWatchingNextUp] = "off"
+            SettingsStore.Save("rooibos-combine-b", settings)
+
+            m.assertEqual(SettingsStore.Load("rooibos-combine-a")[SettingsStore.Key.CombineContinueWatchingNextUp], "on")
+            m.assertEqual(SettingsStore.Load("rooibos-combine-b")[SettingsStore.Key.CombineContinueWatchingNextUp], "off")
         end function
 
     end class

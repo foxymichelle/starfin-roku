@@ -52,7 +52,9 @@
     "stagingFolderPath": "build/tests",
     "outFile": "out/starfin-roku-tests.zip",
     "plugins": [
-        "rooibos-roku"
+        "./tests/rooibos/support/home-layout-cases-plugin.cjs",
+        "rooibos-roku",
+        "./tests/rooibos/support/auth-store-factory-plugin.cjs"
     ],
     "autoImportComponentScript": true,
     "diagnosticFilters": [

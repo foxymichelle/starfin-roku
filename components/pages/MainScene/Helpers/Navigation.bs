@@ -241,6 +241,11 @@ sub navHandleOverlayEventRaised()
     raised = m.overlayHost.eventRaised
     if raised = invalid or raised.request = invalid then return
 
+    if raised.request.id = Trailers.Overlay.Picker and raised.field = "authenticationRequired" then
+        authHandleFeatureAuthenticationRequired(raised.value)
+        return
+    end if
+
     if raised.request.id = "logs" and raised.field = "confirmationRequested" then
         routeLogUploadConfirmation(raised.value)
         return
@@ -537,7 +542,9 @@ end sub
 ' focusActiveSurface
 '-------------------------------------------------------------------------------
 sub focusActiveSurface()
-    if m.playbackController.callFunc("isPlayerVisible") then
+    if m.startupAccount.active and m.startupAccount.page <> invalid and m.startupAccount.page.visible then
+        m.startupAccount.page.callFunc("focusAccounts")
+    else if m.playbackController.callFunc("isPlayerVisible") then
         m.playbackController.callFunc("focusPlayer")
     else if m.audioPlayerPage <> invalid and m.audioPlayerPage.visible = true then
         m.audioPlayerPage.callFunc("activate")

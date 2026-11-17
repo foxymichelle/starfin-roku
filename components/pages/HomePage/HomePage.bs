@@ -762,12 +762,6 @@ sub queueLatestMediaRows(libraries as object)
 
     existingCustomKeys = []
     for each existingKey in m.homeState.rowOrder
-        if Left(existingKey, 10) = "customRow_" then existingCustomKeys.Push(existingKey)
-    end for
-
-
-    existingCustomKeys = []
-    for each existingKey in m.homeState.rowOrder
         if Left(existingKey, 6) = "cfRow_" or Left(existingKey, 10) = "customRow_" then
             existingCustomKeys.Push(existingKey)
         end if
@@ -778,10 +772,19 @@ sub queueLatestMediaRows(libraries as object)
         m.homeState.layout.latestOrder.Push("latest:" + library.id)
         HomeRefresh.Require(m.homeState.sync, "latest:" + library.id)
     end for
-    m.homeState.rowOrder.Push("liveTvOnNow")
+    resolveHomeLayout()
+
     for each customKey in existingCustomKeys
-        m.homeState.rowOrder.Push(customKey)
+        alreadyPresent = false
+        for each k in m.homeState.rowOrder
+            if k = customKey then
+                alreadyPresent = true
+                exit for
+            end if
+        end for
+        if alreadyPresent = false then m.homeState.rowOrder.Push(customKey)
     end for
+
     obsolete = []
     for each key in m.homeState.sync.required
         if Left(key, 7) = "latest:" and not m.homeState.latestLibraries.DoesExist(Mid(key, 8)) then obsolete.Push(key)

@@ -20,6 +20,7 @@ sub init()
     m.items.observeField("rowItemFocused", "onRowItemFocused")
     m.items.observeField("focusExitUp", "onFocusExitUp")
     m.items.observeField("focusExitDown", "onFocusExitDown")
+    m.top.observeField("focusedChild", "onCfShelfFocusChanged")
     if m.cfSliderTimer <> invalid then
         m.cfSliderTimer.observeField("fire", "onCfSliderTimerFire")
     end if
@@ -204,6 +205,22 @@ end sub
 '-------------------------------------------------------------------------------
 sub onFocusExitDown()
     m.top.focusExitDown = true
+end sub
+
+'-------------------------------------------------------------------------------
+' onCfShelfFocusChanged
+'-------------------------------------------------------------------------------
+sub onCfShelfFocusChanged()
+    if m.cfSliderTimer = invalid then return
+    rowContent = m.top.rowContent
+    if rowContent = invalid then return
+    if LCase(Strings.ToString(rowContent.rowKey)).Instr("sliderrow") < 0 then return
+
+    if m.top.isInFocusChain() then
+        if rowContent.getChildCount() > 1 then m.cfSliderTimer.control = "start"
+    else
+        m.cfSliderTimer.control = "stop"
+    end if
 end sub
 
 '-------------------------------------------------------------------------------

@@ -35,7 +35,9 @@ sub executeRequest()
 
         apiUrl = request.server + "/CopperFoxHome/Rows?userId=" + userId + "&t=" + CreateObject("roDateTime").AsSeconds().ToStr()
         if request.rowIndex <> invalid then
-            apiUrl = apiUrl + "&rowIndex=" + Strings.ToString(request.rowIndex) + "&skip=" + Strings.ToString(Number.ToInteger(request.skip, 0))
+            apiUrl = apiUrl + "&rowIndex=" + Strings.ToString(request.rowIndex) + "&skip=" + Strings.ToString(request.skip)
+        else if request.stage <> invalid then
+            apiUrl = apiUrl + "&stage=" + Strings.ToString(request.stage)
         end if
         apiResponse = HttpClient.Request(apiUrl, "GET", invalid, invalid, headers)
 

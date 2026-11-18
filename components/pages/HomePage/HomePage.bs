@@ -413,9 +413,26 @@ sub refreshHomeData(blocking = false as boolean)
 
     m.homeState.sync.required = {}
     m.homeState.layout.loading = true
-    m.homeState.refresh.pendingCore[HomeLayout.Action.Preferences] = true
-    runHomeTask(HomeLayout.Action.Preferences, "HomePreferencesTask", "onHomePreferencesResponse", request)
-    runHomeTask("customHomeRows", "CustomHomeRowsTask", "onCustomHomeRowsResponse", request)
+    m.homeState.refresh.pendingCore["customHomeRows1"] = true
+    m.homeState.rowOrder = []
+    m.homeState.rows = {}
+    m.homeState.sectionItems = {}
+    m.homeState.customRowMeta = {}
+
+    req1 = {}
+    req1.Append(request)
+    req1.stage = 1
+    runHomeTask("customHomeRows1", "CustomHomeRowsTask", "onCustomHomeRowsResponse", req1)
+
+    req2 = {}
+    req2.Append(request)
+    req2.stage = 2
+    runHomeTask("customHomeRows2", "CustomHomeRowsTask", "onCustomHomeRowsResponse", req2)
+
+    req3 = {}
+    req3.Append(request)
+    req3.stage = 3
+    runHomeTask("customHomeRows3", "CustomHomeRowsTask", "onCustomHomeRowsResponse", req3)
 end sub
 
 '-------------------------------------------------------------------------------
@@ -479,7 +496,11 @@ sub runHomeTask(action as string, componentName as string, responseHandler as st
     m.tasks[action] = task
     m.top.taskCreated = task
     task.observeField("response", responseHandler)
-    task.request = buildHomeTaskRequest(request)
+    builtReq = buildHomeTaskRequest(request)
+    if request.stage <> invalid then builtReq.stage = request.stage
+    if request.rowIndex <> invalid then builtReq.rowIndex = request.rowIndex
+    if request.skip <> invalid then builtReq.skip = request.skip
+    task.request = builtReq
     m.homeState.sync.attempted[action] = task.request.homeRevision
     task.control = TaskControl.Command.Run
 end sub
@@ -628,17 +649,25 @@ sub onCustomHomeRowsResponse(event as object)
     task = event.getRoSGNode()
     response = event.getData()
     if response = invalid then return
-    if isCurrentHomeTask(task, "customHomeRows") <> true then return
+
+    matchedAction = ""
+    for each actionName in ["customHomeRows1", "customHomeRows2", "customHomeRows3"]
+        if isCurrentHomeTask(task, actionName) = true then
+            matchedAction = actionName
+            exit for
+        end if
+    end for
+    if matchedAction = "" then return
     completeHomeTask(task)
 
-    if response.ok = true and response.payload <> invalid and response.payload.rows <> invalid and response.payload.rows.Count() > 0 then
-        ' Replace default Starfin rows with CopperFox Home layout
-        for each defaultKey in ["libraries", "continueWatching", "continueListening", "nextUp", "liveTvOnNow"]
-            if m.homeState.rows.DoesExist(defaultKey) then m.homeState.rows.Delete(defaultKey)
-            if m.homeState.sectionItems.DoesExist(defaultKey) then m.homeState.sectionItems.Delete(defaultKey)
-        end for
-        m.homeState.rowOrder = []
+    if matchedAction = "customHomeRows1" then
+        m.homeState.refresh.pendingCore.Delete("customHomeRows1")
+        m.homeState.refresh.initial = false
+        m.homeState.refresh.blocking = false
+        m.homeState.layout.loading = false
+    end if
 
+    if response.ok = true and response.payload <> invalid and response.payload.rows <> invalid and response.payload.rows.Count() > 0 then
         for each customRow in response.payload.rows
             rowKey = Strings.ToString(customRow.key)
             if rowKey <> "" and customRow.items <> invalid and customRow.items.Count() > 0 then
@@ -649,11 +678,45 @@ sub onCustomHomeRowsResponse(event as object)
                     hasMore: (customRow.hasMore = true)
                     title: Strings.ToString(customRow.title)
                 }
-                m.homeState.rowOrder.Push(rowKey)
+
+                alreadyInOrder = false
+                for each existingKey in m.homeState.rowOrder
+                    if existingKey = rowKey then
+                        alreadyInOrder = true
+                        exit for
+                    end if
+                end for
+                if alreadyInOrder = false then m.homeState.rowOrder.Push(rowKey)
+
                 addRow(rowKey, customRow.title, customRow.items)
             end if
         end for
+
+        ' Keep exact server rowIndex order across all 3 stages
+        n = m.homeState.rowOrder.Count()
+        for i = 0 to n - 2
+            for j = 0 to n - i - 2
+                kA = m.homeState.rowOrder[j]
+                kB = m.homeState.rowOrder[j + 1]
+                idxA = 999
+                idxB = 999
+                if m.homeState.customRowMeta[kA].rowIndex <> invalid then idxA = Int(Val(Strings.ToString(m.homeState.customRowMeta[kA].rowIndex)))
+                if m.homeState.customRowMeta[kB].rowIndex <> invalid then idxB = Int(Val(Strings.ToString(m.homeState.customRowMeta[kB].rowIndex)))
+                if idxA > idxB then
+                    m.homeState.rowOrder[j] = kB
+                    m.homeState.rowOrder[j + 1] = kA
+                end if
+            end for
+        end for
+
         renderRows()
+    end if
+
+    if matchedAction = "customHomeRows1" then
+        stopHomeLoading()
+        if hasRenderedRows() and m.top.isInFocusChain() = false then
+            focusShelf(m.homeState.focusedShelfIndex)
+        end if
     end if
 end sub
 
@@ -1235,9 +1298,9 @@ function getHomeItemImageUrl(key as string, item as dynamic, imageAspect as stri
         if meta.rowType = "SliderRow" and serverUrl <> "" then
             itemId = Strings.ToString(item.Id)
             if item.BackdropImageTags <> invalid and item.BackdropImageTags.Count() > 0 then
-                return serverUrl + "/Items/" + itemId + "/Images/Backdrop?maxWidth=1920&quality=95&api_key=" + token
+                return serverUrl + "/Items/" + itemId + "/Images/Backdrop?maxWidth=1280&quality=85&api_key=" + token
             end if
-            return serverUrl + "/Items/" + itemId + "/Images/Thumb?maxWidth=1920&quality=95&api_key=" + token
+            return serverUrl + "/Items/" + itemId + "/Images/Thumb?maxWidth=1280&quality=85&api_key=" + token
         end if
 
         if meta.rowType = "MyMedia" then
@@ -1248,13 +1311,13 @@ function getHomeItemImageUrl(key as string, item as dynamic, imageAspect as stri
         if imageAspect = VideoCardPresentation.Type.Thumbnail and serverUrl <> "" then
             targetId = Strings.ToString(item.Id)
             if item.ParentThumbItemId <> invalid and Strings.ToString(item.ParentThumbItemId) <> "" then
-                return serverUrl + "/Items/" + Strings.ToString(item.ParentThumbItemId) + "/Images/Thumb?maxWidth=800&quality=95&api_key=" + token
+                return serverUrl + "/Items/" + Strings.ToString(item.ParentThumbItemId) + "/Images/Thumb?maxWidth=500&quality=85&api_key=" + token
             end if
             if item.ImageTags <> invalid and item.ImageTags.Thumb <> invalid then
-                return serverUrl + "/Items/" + targetId + "/Images/Thumb?maxWidth=800&quality=95&api_key=" + token
+                return serverUrl + "/Items/" + targetId + "/Images/Thumb?maxWidth=500&quality=85&api_key=" + token
             end if
             if item.BackdropImageTags <> invalid and item.BackdropImageTags.Count() > 0 then
-                return serverUrl + "/Items/" + targetId + "/Images/Backdrop?maxWidth=800&quality=95&api_key=" + token
+                return serverUrl + "/Items/" + targetId + "/Images/Backdrop?maxWidth=500&quality=85&api_key=" + token
             end if
         end if
     end if

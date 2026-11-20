@@ -27,13 +27,13 @@ sub executeRequest()
         return
     end if
 
-    moviesAndSeriesResult = searchItems(request, "Movie,Series", "PrimaryImageAspectRatio,Overview,Genres,UserData")
+    moviesAndSeriesResult = searchItems(request, "Movie,Series", "PrimaryImageAspectRatio,Overview,Genres,UserData,Path")
     if moviesAndSeriesResult.ok <> true then
         m.top.response = withAction(moviesAndSeriesResult, request)
         return
     end if
 
-    episodesResult = searchItems(request, "Episode", "PrimaryImageAspectRatio,Overview,SeriesName,ParentIndexNumber,IndexNumber,UserData")
+    episodesResult = searchItems(request, "Episode", "PrimaryImageAspectRatio,Overview,SeriesName,ParentIndexNumber,IndexNumber,UserData,Path")
     if episodesResult.ok <> true then
         m.top.response = withAction(episodesResult, request)
         return
@@ -45,13 +45,39 @@ sub executeRequest()
         return
     end if
 
+    movies = []
+    shows = []
+    discover = []
+    for each item in getPayloadItems(moviesAndSeriesResult.data)
+        if Arrays.IsAssocArray(item) = false then continue for
+        itemPath = LCase(Strings.ToString(item.Path))
+        if Instr(1, itemPath, "/discover/") > 0 or Instr(1, itemPath, "\discover\") > 0 then
+            discover.Push(item)
+        else if LCase(Strings.ToString(item.Type)) = "movie" then
+            movies.Push(item)
+        else if LCase(Strings.ToString(item.Type)) = "series" then
+            shows.Push(item)
+        end if
+    end for
+
+    ownedEpisodes = []
+    for each ep in getPayloadItems(episodesResult.data)
+        if Arrays.IsAssocArray(ep) = false then continue for
+        epPath = LCase(Strings.ToString(ep.Path))
+        if Instr(1, epPath, "/discover/") = 0 and Instr(1, epPath, "\discover\") = 0 then
+            ownedEpisodes.Push(ep)
+        end if
+    end for
+
     m.top.response = {
         ok: true
         action: "search"
         query: Strings.Trim(request.query)
         payload: {
-            moviesAndSeries: getPayloadItems(moviesAndSeriesResult.data)
-            episodes: getPayloadItems(episodesResult.data)
+            movies: movies
+            shows: shows
+            episodes: ownedEpisodes
+            discover: discover
             people: getPayloadItems(peopleResult.data)
         }
     }

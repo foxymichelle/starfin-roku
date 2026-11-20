@@ -13,6 +13,10 @@
     <field id="allEpisodesSelected" type="boolean" alwaysNotify="true" />
     <field id="markAsWatchedSelected" type="boolean" alwaysNotify="true" />
     <field id="markAsUnwatchedSelected" type="boolean" alwaysNotify="true" />
+    <field id="isFavorite" type="boolean" value="false" onChange="onFavoriteStateChanged" />
+    <field id="isDiscover" type="boolean" value="false" onChange="onCapabilitiesChanged" />
+    <field id="favoriteSelected" type="boolean" alwaysNotify="true" />
+    <field id="unfavoriteSelected" type="boolean" alwaysNotify="true" />
     <field id="seriesSelected" type="boolean" alwaysNotify="true" />
     <field id="mediaInfoText" type="string" onChange="onMediaInfoTextChanged" />
     <field id="mediaInfoSelected" type="boolean" alwaysNotify="true" />
@@ -36,6 +40,7 @@
     <function name="deactivate" />
     <function name="resetFocus" />
     <function name="focusWatchedAction" />
+    <function name="focusFavoriteAction" />
   </interface>
   <children>
     <Group id="toolbarItems">
@@ -87,6 +92,18 @@
         focusedIcon="pkg:/images/icons/media-toolbar/mark-as-unwatched-focused.png"
         text="Mark as Unwatched"
         expandedWidth="345" />
+      <DynamicButton
+        id="favoriteButton"
+        icon="pkg:/images/icons/media-toolbar/heart-light.png"
+        focusedIcon="pkg:/images/icons/media-toolbar/heart-focused.png"
+        text="Favorite"
+        expandedWidth="205" />
+      <DynamicButton
+        id="unfavoriteButton"
+        icon="pkg:/images/icons/media-toolbar/heart-filled-light.png"
+        focusedIcon="pkg:/images/icons/media-toolbar/heart-filled-focused.png"
+        text="Unfavorite"
+        expandedWidth="230" />
       <DynamicButton
         id="seriesButton"
         icon="pkg:/images/icons/media-toolbar/series-tv-light.png"

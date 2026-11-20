@@ -3,6 +3,7 @@
 '-------------------------------------------------------------------------------
 sub init()
     m.badgeNodes = {
+        root: m.top.findNode("badgeRoot")
         visual: m.top.findNode("badgeVisual")
         ring: m.top.findNode("badgeRing")
         glass: m.top.findNode("badgeGlass")
@@ -71,6 +72,52 @@ end sub
 '-------------------------------------------------------------------------------
 sub onColorsChanged()
     m.badgeNodes.matte.blendColor = m.top.backgroundColor
-    m.badgeNodes.ring.blendColor = m.top.ringColor
+    if m.top.focused = true then
+        m.badgeNodes.ring.blendColor = "0xFFFFFFFF"
+    else
+        m.badgeNodes.ring.blendColor = m.top.ringColor
+    end if
     m.badgeNodes.glass.blendColor = m.top.glassColor
 end sub
+
+'-------------------------------------------------------------------------------
+' onFocusedChanged
+'-------------------------------------------------------------------------------
+sub onFocusedChanged()
+    if m.top.focused = true then
+        if m.badgeNodes.root <> invalid then m.badgeNodes.root.scale = [1.12, 1.12]
+        m.badgeNodes.ring.translation = [-6, -6]
+        m.badgeNodes.ring.width = 108
+        m.badgeNodes.ring.height = 108
+        m.badgeNodes.ring.blendColor = "0xFFFFFFFF"
+    else
+        if m.badgeNodes.root <> invalid then m.badgeNodes.root.scale = [1.0, 1.0]
+        m.badgeNodes.ring.translation = [-3, -3]
+        m.badgeNodes.ring.width = 102
+        m.badgeNodes.ring.height = 102
+        m.badgeNodes.ring.blendColor = m.top.ringColor
+    end if
+end sub
+
+'-------------------------------------------------------------------------------
+' onKeyEvent
+'-------------------------------------------------------------------------------
+function onKeyEvent(key as string, press as boolean) as boolean
+    if press = false then return false
+    if key = "OK" then
+        m.top.buttonSelected = true
+        return true
+    end if
+    return false
+end function
+
+'-------------------------------------------------------------------------------
+' getContentWidth
+'-------------------------------------------------------------------------------
+function getContentWidth() as integer
+    if m.badgeNodes = invalid or m.badgeNodes.name = invalid then return 122
+    m.badgeNodes.name.width = 0
+    textRect = m.badgeNodes.name.boundingRect()
+    m.badgeNodes.name.width = 422
+    return 122 + Int(textRect.width)
+end function

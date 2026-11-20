@@ -38,5 +38,6 @@
     <MovieTask id="movieTask" />
     <MovieTask id="movieTaskAlternate" />
     <WatchedTask id="watchedTask" />
+    <FavoriteItemTask id="favoriteItemTask" />
   </children>
 </component>

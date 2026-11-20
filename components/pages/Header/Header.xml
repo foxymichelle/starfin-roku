@@ -10,20 +10,33 @@
     <field id="homeSelected" type="boolean" alwaysNotify="true" />
     <field id="searchSelected" type="boolean" alwaysNotify="true" />
     <field id="downSelected" type="boolean" alwaysNotify="true" />
+    <field id="exitRightSelected" type="boolean" alwaysNotify="true" />
+    <field id="hasLibrarySortControls" type="boolean" value="false" />
+    <function name="focusRightmostHeaderControl" />
     <field id="backSelected" type="boolean" alwaysNotify="true" />
     <field id="yourStatsSelected" type="boolean" alwaysNotify="true" />
     <field id="logoutSelected" type="boolean" alwaysNotify="true" />
     <field id="switchAccountSelected" type="boolean" alwaysNotify="true" />
     <field id="overlayRequested" type="assocarray" alwaysNotify="true" />
     <field id="thumbnailLibraryLayout" type="boolean" value="false" onChange="onThumbnailLibraryLayoutChanged" />
+    <field id="activePage" type="string" value="home" onChange="onActivePageChanged" />
     <function name="focusHeader" />
     <function name="focusSystemMenuButton" />
     <function name="focusUserMenuButton" />
     <function name="isHomeButtonFocused" />
   </interface>
   <children>
-    <AccountBadge id="accountBadge" translation="[48,16]" visible="false" />
-    <Group id="navGroup" translation="[549,34]">
+    <AccountBadge id="accountBadge" translation="" visible="false" />
+
+    <Group id="topHomeGroup" translation="[260,44]" focusable="true" scaleRotateCenter="[20,20]">
+      <Poster id="topHomeIcon" width="40" height="40" uri="pkg:/images/icons/header/home.png" blendColor="0xF6F7FBFF" />
+    </Group>
+
+    <Group id="topSearchGroup" translation="[328,44]" focusable="true" scaleRotateCenter="[20,20]">
+      <Poster id="topSearchIcon" width="40" height="40" uri="pkg:/images/icons/header/search.png" blendColor="0xF6F7FBFF" />
+    </Group>
+
+    <Group id="navGroup" translation="[549,34]" visible="false">
       <Poster
         id="navGlassBackground"
         translation="[-18,-10]"

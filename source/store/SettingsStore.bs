@@ -79,20 +79,20 @@ namespace SettingsStore
         defaultSettings[Key.TvSeriesShellLayout] = MediaShellLayout.Mode.PartialScreen
         defaultSettings[Key.TvEpisodeShellLayout] = MediaShellLayout.Mode.FullScreen
         defaultSettings[Key.MusicShellLayout] = MediaShellLayout.Mode.FullScreen
-        defaultSettings[Key.Theme] = Theme.Mode.Blue
+        defaultSettings[Key.Theme] = Theme.Mode.PureBlack
         defaultSettings[Key.WatchedIndicatorStyle] = WatchedIndicator.Style.Subtle
         defaultSettings[Key.ShowUnwatchedEpisodeCount] = UnwatchedEpisodeCount.Mode.Off
         defaultSettings[Key.ThemeMusic] = "off"
         defaultSettings[Key.AutoSkipIntros] = AutoSkip.Mode.Off
         defaultSettings[Key.AutoSkipCredits] = AutoSkip.Mode.Off
         defaultSettings[Key.NextItemPlayback] = NextItemPlayback.Mode.ShowUpNext
-        defaultSettings[Key.NextEpisodePromptSeconds] = NextEpisodePromptSeconds.Preset.Off
+        defaultSettings[Key.NextEpisodePromptSeconds] = "60"
         defaultSettings[Key.ScreensaverType] = "none"
         defaultSettings[Key.ScreensaverDelay] = "1"
         defaultSettings[Key.VideoStreamingMode] = PlaybackMode.Mode.Automatic
         defaultSettings[Key.SubtitleBurnInMode] = SubtitleBurnIn.Mode.DuringTranscoding
-        defaultSettings[Key.SelectAccountAtStartup] = Toggle.Off
-        defaultSettings[Key.DisplayAccountBadge] = "off"
+        defaultSettings[Key.SelectAccountAtStartup] = Toggle.On
+        defaultSettings[Key.DisplayAccountBadge] = "on"
         defaultSettings[Key.TmdbApiKey] = ""
         return defaultSettings
     end function

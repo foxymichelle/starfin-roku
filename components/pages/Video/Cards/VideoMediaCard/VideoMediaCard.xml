@@ -13,17 +13,22 @@
       <Label id="cfBadgeLabel" color="0xFFFFFFFF" font="font:SmallestSystemFont" horizAlign="center" vertAlign="center" height="32" width="120" />
     </Group>
 
+    <Group id="cfDiscoverTypeGroup" translation="[33,18]" visible="false">
+      <Rectangle id="cfDiscoverTypeBg" color="0x000000CC" height="32" width="36" />
+      <Label id="cfDiscoverTypeLabel" color="0xFFFFFFFF" font="font:SmallestSystemFont" horizAlign="center" vertAlign="center" height="32" width="36" />
+    </Group>
+
     <Group id="cfMoreGroup" visible="false">
       <Rectangle id="cfMoreBg" color="0x1C1C1CFF" width="270" height="405" />
       <Label id="cfMoreLabel" text="MORE" color="0xFFFFFFFF" font="font:MediumBoldSystemFont" horizAlign="center" vertAlign="center" width="270" height="405" />
     </Group>
 
-    <Group id="cfSliderGroup" visible="false">
-      <Rectangle id="cfSliderFocusBorder" color="0xFFFFFFFF" width="1760" height="540" visible="false" />
-      <Poster id="cfSliderPoster" width="1752" height="532" loadDisplayMode="scaleToZoom" />
-      <Rectangle id="cfSliderScrim" color="0x00000099" width="1752" height="130" />
-      <Label id="cfSliderTitle" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" width="1672" height="44" />
-      <Label id="cfSliderOverview" color="0xDDDDDDFF" font="font:SmallSystemFont" width="1672" height="56" wrap="true" maxLines="2" />
+    <Group id="cfSliderGroup" translation="[21,0]" visible="false">
+      <Rectangle id="cfSliderFocusBorder" color="0xFFFFFFFF" width="1782" height="540" visible="false" />
+      <Poster id="cfSliderPoster" width="1774" height="532" loadDisplayMode="scaleToZoom" />
+      <Rectangle id="cfSliderScrim" color="0x00000099" width="1774" height="130" />
+      <Label id="cfSliderTitle" color="0xFFFFFFFF" font="font:LargeBoldSystemFont" width="1694" height="44" />
+      <Label id="cfSliderOverview" color="0xDDDDDDFF" font="font:SmallSystemFont" width="1694" height="56" wrap="true" maxLines="2" />
     </Group>
   </children>
 </component>

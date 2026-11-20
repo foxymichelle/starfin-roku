@@ -17,6 +17,8 @@
     <field id="mediaStateChange" type="assocarray" onChange="onMediaStateChange" />
     <field id="playbackProgressChange" type="assocarray" onChange="onPlaybackProgressChange" />
     <field id="focusExitUp" type="boolean" alwaysNotify="true" />
+    <field id="exitLeftToHeader" type="boolean" alwaysNotify="true" />
+    <function name="focusSortControlsFromHeader" />
     <field id="thumbnailLayoutActive" type="boolean" value="false" />
     <function name="activate" />
     <function name="deactivate" />
@@ -30,8 +32,8 @@
     <UnwatchedEpisodeCountRefresh id="episodeCountRefresh" />
     <LabelHeading id="titleLabel" translation="[480,132]" width="960" horizAlign="center" text="Library" />
     <PrimaryButton id="musicVideoRandomButton" visible="false" buttonWidth="165" buttonHeight="48" textHeight="26" textFont="font:SmallestSystemFont" iconGap="6" contentOffsetX="3" iconUri="pkg:/images/icons/media-toolbar/random-light.png" focusedIconUri="pkg:/images/icons/media-toolbar/random-focused.png" text="Random" />
-    <BrowseByButton id="browseByButton" translation="[1618,132]" />
-    <SortButton id="sortButton" translation="[1816,132]" />
+    <BrowseByButton id="browseByButton" translation="" />
+    <SortButton id="sortButton" translation="" />
     <LetterGutterButton id="letterGutterButton" translation="[24,430]" />
     <FilterButtonRow id="filterButtonRow" visible="false" />
     <Label

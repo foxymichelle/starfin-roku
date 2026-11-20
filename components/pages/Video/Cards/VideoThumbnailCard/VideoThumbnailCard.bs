@@ -54,6 +54,19 @@ sub renderPresentation(content as object)
     m.cardNodes.logoGradient.width = m.cardNodes.poster.width
     m.cardNodes.logoGradient.height = m.cardNodes.poster.height
     renderStandardText(content)
+
+    isMyMediaFolder = false
+    if content.raw <> invalid then
+        rawType = LCase(Strings.ToString(content.raw.Type))
+        rawCollection = LCase(Strings.ToString(content.raw.CollectionType))
+        if rawType = "collectionfolder" or rawType = "userview" or rawType = "manualplaylistsfolder" or rawCollection = "playlists" then
+            isMyMediaFolder = true
+        end if
+    end if
+    if isMyMediaFolder then
+        if m.cardNodes.title <> invalid then m.cardNodes.title.visible = false
+        if m.cardNodes.metadataLabel <> invalid then m.cardNodes.metadataLabel.visible = false
+    end if
 end sub
 
 '-------------------------------------------------------------------------------

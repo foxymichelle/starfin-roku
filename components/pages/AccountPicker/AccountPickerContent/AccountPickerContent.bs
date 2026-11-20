@@ -41,6 +41,10 @@ sub initReferences()
     m.leftChevron = m.top.findNode("leftChevron")
     m.rightChevron = m.top.findNode("rightChevron")
     m.signInButton = m.top.findNode("signInButton")
+    m.pickerNavGroup = m.top.findNode("pickerNavGroup")
+    m.pickerSettingsBtn = m.top.findNode("pickerSettingsBtn")
+    m.pickerNavButtons = [m.pickerSettingsBtn]
+    m.pickerSettingsBtn.observeField("buttonSelected", "onPickerSettingsSelected")
     m.removalPreview = m.top.findNode("removalPreview")
     m.removalDescription = m.top.findNode("removalDescription")
     m.removeButton = m.top.findNode("removeButton")
@@ -119,7 +123,7 @@ sub renderAccountRows(accounts as dynamic)
     for each account in accounts
         item = row.createChild("ContentNode")
         item.title = Strings.ToString(account.username, "Account")
-        if m.top.protectActiveAccount and account.isActive = true then item.description = "Active" else item.description = "* to forget"
+        if m.top.protectActiveAccount and account.isActive = true then item.description = "Active" else item.description = "* to remove"
         item.HDPosterUrl = buildAccountImageUri(account)
         item.AddFields({ account: account })
     end for
@@ -172,8 +176,15 @@ sub layoutContent()
     bodyHeight = 264
     if m.top.verticalLayout then bodyHeight = rowCount * 128 - 8
     footerGap = m.top.signInGap
-    buttonY = bodyHeight + footerGap
-    if accountCount = 0 and m.accountState.mode = AccountPicker.Mode.Picker then buttonY = 0
+    navY = bodyHeight + footerGap
+    if accountCount = 0 and m.accountState.mode = AccountPicker.Mode.Picker then navY = 0
+    navWidth = 214
+    navX = Number.ToInteger((contentWidth - navWidth) / 2, 0)
+    if m.pickerNavGroup <> invalid then
+        m.pickerNavGroup.visible = (m.accountState.mode = AccountPicker.Mode.Picker)
+        m.pickerNavGroup.translation = [navX, navY]
+    end if
+    buttonY = navY + 56 + 18
     m.signInButton.translation = [buttonX, buttonY]
     listWidth = m.layoutState.verticalItemWidth
     if listWidth > contentWidth then listWidth = contentWidth
@@ -326,7 +337,13 @@ end function
 '-------------------------------------------------------------------------------
 sub onAccountRowsFocusExitDown()
     saveFocusedAccount()
-    focusSignInButton()
+    setVerticalFocusFeedback(false)
+    m.accountRows.drawFocusFeedback = false
+    if m.pickerSettingsBtn <> invalid then
+        m.pickerSettingsBtn.setFocus(true)
+    else
+        focusSignInButton()
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -530,12 +547,67 @@ function onKeyEvent(key as string, press as boolean) as boolean
         if account <> invalid then showRemoveConfirmation(account)
         return true
     end if
-    if m.signInButton.isInFocusChain() and key = Remote.Key.Up and (m.accountRows.visible or m.verticalAccounts.visible) then
+    navIdx = getFocusedPickerNavIndex()
+    if navIdx >= 0 then
+        if key = Remote.Key.Left then
+            nextIdx = navIdx - 1
+            if nextIdx < 0 then nextIdx = m.pickerNavButtons.Count() - 1
+            m.pickerNavButtons[nextIdx].setFocus(true)
+            return true
+        else if key = Remote.Key.Right then
+            nextIdx = navIdx + 1
+            if nextIdx >= m.pickerNavButtons.Count() then nextIdx = 0
+            m.pickerNavButtons[nextIdx].setFocus(true)
+            return true
+        else if key = Remote.Key.Up and (m.accountRows.visible or m.verticalAccounts.visible) then
+            return focusAccounts()
+        else if key = Remote.Key.Down then
+            return focusSignInButton()
+        end if
+    end if
+
+    if m.signInButton.isInFocusChain() and key = Remote.Key.Up then
         m.signInButton.hasFocusVisual = false
-        return focusAccounts()
+        if m.pickerNavGroup <> invalid and m.pickerNavGroup.visible then
+            m.pickerSettingsBtn.setFocus(true)
+            return true
+        end if
+        if m.accountRows.visible or m.verticalAccounts.visible then return focusAccounts()
     end if
     return false
 end function
+
+'-------------------------------------------------------------------------------
+' getFocusedPickerNavIndex
+'-------------------------------------------------------------------------------
+function getFocusedPickerNavIndex() as integer
+    if m.pickerNavButtons = invalid then return -1
+    for i = 0 to m.pickerNavButtons.Count() - 1
+        if m.pickerNavButtons[i] <> invalid and m.pickerNavButtons[i].isInFocusChain() then return i
+    end for
+    return -1
+end function
+
+'-------------------------------------------------------------------------------
+' onPickerHomeSelected
+'-------------------------------------------------------------------------------
+sub onPickerHomeSelected()
+    m.top.navSelected = "home"
+end sub
+
+'-------------------------------------------------------------------------------
+' onPickerSearchSelected
+'-------------------------------------------------------------------------------
+sub onPickerSearchSelected()
+    m.top.navSelected = "search"
+end sub
+
+'-------------------------------------------------------------------------------
+' onPickerSettingsSelected
+'-------------------------------------------------------------------------------
+sub onPickerSettingsSelected()
+    m.top.navSelected = "settings"
+end sub
 
 '-------------------------------------------------------------------------------
 ' renderVerticalAccounts
@@ -546,7 +618,7 @@ sub renderVerticalAccounts(accounts as object)
         item = content.createChild("ContentNode")
         item.title = Strings.ToString(account.username, "Account")
         item.description = Url.NormalizeServer(account.server)
-        accountStatus = "* to forget"
+        accountStatus = "* to remove"
         if m.top.protectActiveAccount and account.isActive = true then accountStatus = "Active"
         item.HDPosterUrl = buildAccountImageUri(account)
         item.addFields({ account: account, accountStatus: accountStatus, rowWidth: m.verticalAccounts.itemSize[0], listFocused: false })

@@ -54,6 +54,7 @@
     <ChevronFooter id="chevronFooter" translation="[936,1020]" iconWidth="48" iconHeight="48" />
 
     <WatchedTask id="watchedTask" />
+    <FavoriteItemTask id="favoriteItemTask" />
     <TVShowTask id="tvShowTask" />
     <TVShowTask id="tvShowTaskAlternate" />
     <TVShowRandomPlaybackTask id="randomPlaybackTask" />

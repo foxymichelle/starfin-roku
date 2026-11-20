@@ -9,6 +9,10 @@ sub init()
     m.cfBadgeGroup = m.top.findNode("cfBadgeGroup")
     m.cfBadgeBg = m.top.findNode("cfBadgeBg")
     m.cfBadgeLabel = m.top.findNode("cfBadgeLabel")
+    m.cfDiscoverTypeGroup = m.top.findNode("cfDiscoverTypeGroup")
+    m.cfDiscoverTypeBg = m.top.findNode("cfDiscoverTypeBg")
+    m.cfDiscoverTypeLabel = m.top.findNode("cfDiscoverTypeLabel")
+    m.hasDiscoverBadge = false
     m.cfMoreGroup = m.top.findNode("cfMoreGroup")
     m.cfMoreBg = m.top.findNode("cfMoreBg")
     m.cfMoreLabel = m.top.findNode("cfMoreLabel")
@@ -104,6 +108,32 @@ sub onItemContentChanged()
     else
         m.cfBadgeGroup.visible = false
     end if
+
+    discoverLetter = ""
+    if raw <> invalid then
+        rawPath = LCase(Strings.ToString(raw.Path))
+        isDiscover = (Instr(1, rawPath, "/discover/") > 0 or Instr(1, rawPath, "\discover\") > 0 or raw.cfIsDiscover = true)
+        if isDiscover then
+            rawType = LCase(Strings.ToString(raw.Type))
+            if rawType = "movie" then discoverLetter = "movie"
+            if rawType = "series" then discoverLetter = "show"
+        end if
+    end if
+
+    if m.cfDiscoverTypeGroup <> invalid then
+        if discoverLetter <> "" then
+            discW = (Len(discoverLetter) * 14) + 28
+            if discW < 72 then discW = 72
+            if m.cfDiscoverTypeBg <> invalid then m.cfDiscoverTypeBg.width = discW
+            m.cfDiscoverTypeLabel.width = discW
+            m.cfDiscoverTypeLabel.text = discoverLetter
+            m.hasDiscoverBadge = true
+            m.cfDiscoverTypeGroup.visible = (m.top.itemHasFocus = true)
+        else
+            m.hasDiscoverBadge = false
+            m.cfDiscoverTypeGroup.visible = false
+        end if
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -133,6 +163,9 @@ end sub
 ' onItemFocusChanged
 '-------------------------------------------------------------------------------
 sub onItemFocusChanged()
+    if m.cfDiscoverTypeGroup <> invalid then
+        m.cfDiscoverTypeGroup.visible = (m.hasDiscoverBadge = true and m.top.itemHasFocus = true)
+    end if
     if m.presentationState.node <> invalid then
         m.presentationState.node.itemHasFocus = m.top.itemHasFocus
     end if

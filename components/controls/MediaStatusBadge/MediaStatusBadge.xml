@@ -5,7 +5,10 @@
     <field id="data" type="assocarray" alwaysNotify="true" />
   </interface>
   <children>
-    <Poster id="watchedCheck" visible="false" />
+    <Group id="watchedCheck" visible="false">
+      <Rectangle id="watchedCheckBg" color="0x000000CC" width="32" height="32" />
+      <Label id="watchedCheckLabel" text="✓" color="0xFFFFFFFF" font="font:SmallestSystemFont" horizAlign="center" vertAlign="center" width="32" height="32" />
+    </Group>
     <Group id="countGroup" visible="false">
       <Poster id="countBackground" uri="pkg:/images/icons/unwatched-count-background.9.png" loadDisplayMode="scaleToFill" />
       <Label id="countLabel" color="0xFFFFFFFF" horizAlign="center" vertAlign="top" />

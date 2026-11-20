@@ -13,6 +13,7 @@
     <field id="accounts" type="array" />
     <field id="accountSelected" type="assocarray" alwaysNotify="true" />
     <field id="signInSelected" type="boolean" alwaysNotify="true" />
+    <field id="navSelected" type="string" alwaysNotify="true" />
     <field id="accountsChanged" type="array" alwaysNotify="true" />
     <function name="focusAccounts" />
   </interface>
@@ -41,6 +42,9 @@
       height="48"
       uri="pkg:/images/icons/chevrons/right.png"
       visible="false" />
+    <Group id="pickerNavGroup">
+      <HeaderButton id="pickerSettingsBtn" translation="[0,0]" buttonWidth="214" buttonHeight="56" text="Settings" iconUri="pkg:/images/icons/header/settings.png" iconWidth="24" />
+    </Group>
     <PrimaryButton
       id="signInButton"
       buttonWidth="420"

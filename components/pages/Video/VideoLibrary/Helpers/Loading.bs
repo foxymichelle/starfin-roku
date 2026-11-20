@@ -22,6 +22,8 @@ sub prepareLoadRequest(request as object)
             selection = buildSortSelection(LibraryBrowse.Option.Unwatched, request.sortOrder)
         else if request.favoriteOnly = true then
             selection = LibraryBrowse.CreateSortSelection(LibraryBrowse.Option.Favorites, LibraryBrowse.SortKey.Title, "Favorites", request.sortOrder)
+        else if isCollectionContentRequest(request) then
+            selection = buildSortSelection(LibraryBrowse.Option.ReleaseDate, LibraryBrowse.SortOrder.Ascending)
         else
             selection = buildSortSelection(request.sortBy, request.sortOrder)
         end if

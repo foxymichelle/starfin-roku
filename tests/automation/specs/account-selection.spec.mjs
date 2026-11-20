@@ -187,7 +187,7 @@ describe('Starfin startup account selection and switching', function () {
 
   it('lets the last-used startup account open and cancel forgetting without clearing its reference', async () => {
     await seed([account(), account('b')]);
-    assert.equal(await value(`${picker}.#verticalAccounts.content.0.accountStatus`), '* to forget');
+    assert.equal(await value(`${picker}.#verticalAccounts.content.0.accountStatus`), '* to remove');
     await press('Info');
     await visible(`${picker}.#removalPreview`);
     await press('Back');

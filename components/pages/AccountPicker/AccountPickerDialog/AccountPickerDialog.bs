@@ -14,6 +14,7 @@ sub openAccountPicker()
     syncPickerWidth()
     content.observeField("accountSelected", "onAccountSelected")
     content.observeField("signInSelected", "onSignInSelected")
+    content.observeField("navSelected", "onNavSelected")
     content.observeField("accountsChanged", "onAccountsChanged")
     content.observeField("preferredHeight", "onContentHeightChanged")
     onContentHeightChanged()
@@ -63,4 +64,13 @@ sub syncPickerWidth()
     content = m.top.callFunc("getContentComponent")
     if content.verticalLayout then m.top.dialogWidth = 760
     content.contentWidth = Number.ToInteger(m.top.dialogWidth - 120, 800)
+end sub
+
+'-------------------------------------------------------------------------------
+' onNavSelected
+'-------------------------------------------------------------------------------
+sub onNavSelected()
+    content = m.top.callFunc("getContentComponent")
+    m.top.navSelected = content.navSelected
+    m.top.callFunc("closeDialog")
 end sub

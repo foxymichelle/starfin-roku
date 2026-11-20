@@ -25,7 +25,14 @@ sub captureHomeFocus(rowKey = "" as string, itemId = "" as string)
     if selectedShelf = invalid then return
     item = selectedShelf.callFunc("getFocusedItem")
     if item = invalid then return
-    m.homeState.focus.returnTarget = { rowKey: Strings.ToString(selectedShelf.rowContent.rowKey), itemId: Strings.ToString(item.Id) }
+    savedShelfIdx = m.homeState.focusedShelfIndex
+    for idx = 0 to m.homeState.shelfNodes.Count() - 1
+        if m.homeState.shelfNodes[idx].isSameNode(selectedShelf) then
+            savedShelfIdx = idx
+            exit for
+        end if
+    end for
+    m.homeState.focus.returnTarget = { rowKey: Strings.ToString(selectedShelf.rowContent.rowKey), itemId: Strings.ToString(item.Id), shelfIndex: savedShelfIdx }
 end sub
 
 '-------------------------------------------------------------------------------
@@ -39,7 +46,7 @@ function resolveHomeFocus() as object
         watching = target.rowKey = "continueWatching" or target.rowKey = "nextUp"
         for i = 0 to m.homeState.shelfNodes.Count() - 1
             row = m.homeState.shelfNodes[i].rowContent
-            sameRow = row.rowKey = target.rowKey
+            sameRow = (target.shelfIndex <> invalid and i = target.shelfIndex) or (target.rowKey <> "" and row.rowKey = target.rowKey)
             if sameRow then result.index = i
             if sameRow or (watching and (row.rowKey = "continueWatching" or row.rowKey = "nextUp")) then
                 for each child in row.getChildren(-1, 0)
@@ -77,7 +84,7 @@ sub focusHome()
         m.top.setFocus(true)
         return
     end if
-    captureHomeFocus()
+    if m.homeState.focus.returnTarget = invalid then captureHomeFocus()
     restoreHomeFocus()
 end sub
 

@@ -18,7 +18,7 @@
   <children>
     <UnwatchedEpisodeCountRefresh id="episodeCountRefresh" />
     <DynamicMiniKeyboard id="keyboard" translation="[96,120]" />
-    <PrimaryButton id="searchButton" translation="[96,650]" buttonWidth="373" buttonHeight="56" text="Search" />
+    <PrimaryButton id="searchButton" translation="[96,650]" buttonWidth="373" buttonHeight="56" text="Search" visible="false" focusable="false" />
     <Label
       id="helpLabel"
       translation="[486,132]"

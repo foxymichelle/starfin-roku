@@ -191,18 +191,32 @@ sub onCustomRowMoreResponse(event as object)
     for each it in existing
         if it.cfIsLoadMore <> true then merged.Push(it)
     end for
+    firstNewId = ""
     for each newIt in updatedRow.items
         if newIt.cfIsLoadMore = true then
             newIt.cfNextSkip = merged.Count()
+        else if firstNewId = "" then
+            firstNewId = Strings.ToString(newIt.Id)
         end if
         merged.Push(newIt)
     end for
+
+    if firstNewId <> "" then
+        m.homeState.focus.returnTarget = {
+            rowKey: rowKey
+            itemId: firstNewId
+            shelfIndex: m.homeState.focusedShelfIndex
+        }
+    end if
 
     meta = m.homeState.customRowMeta[rowKey]
     title = meta.title
     if title = "" then title = Strings.ToString(updatedRow.title)
     addRow(rowKey, title, merged)
     renderRows()
+    if firstNewId <> "" then
+        focusShelf(m.homeState.focusedShelfIndex, firstNewId)
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
@@ -322,15 +336,14 @@ sub activate(fullRefresh = false as boolean)
     m.homeState.sync.attempted = {}
     m.homeState.sync.failedReports = {}
     m.homeState.refresh.messagesSuppressed = false
-    if fullRefresh or m.homeState.sync.loaded <> true then
+    hasLoadedCustomRows = m.homeState.shelfNodes <> invalid and m.homeState.shelfNodes.Count() > 0
+    if fullRefresh or (m.homeState.sync.loaded <> true and hasLoadedCustomRows <> true) then
         m.top.visible = true
         refreshHomeData(false)
         focusHome()
     else if m.homeState.layout.loading then
         m.top.visible = true
         focusHome()
-    else if hasPendingHomeWork() then
-        refreshPlaybackRows(true)
     else
         m.top.visible = true
         focusHome()
@@ -1133,16 +1146,16 @@ function getRowLayout(key as string) as object
     end if
 
     if key = "libraries" then
-        return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
+        return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 12, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
     end if
 
     if m.homeState.customRowMeta <> invalid and m.homeState.customRowMeta.DoesExist(key) then
         meta = m.homeState.customRowMeta[key]
         if meta.rowType = "SliderRow" then
-            return { width: 1760, height: 560, itemSizeWidth: 1824, itemSpacing: 24, spacingAfter: 36, focusBitmapFilename: "", itemComponentName: "VideoMediaCard" }
+            return { width: 1803, height: 560, itemSizeWidth: 1851, itemSpacing: 60, spacingAfter: 36, focusBitmapFilename: "", itemComponentName: "VideoMediaCard" }
         end if
         if meta.rowType = "MyMedia" then
-            return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
+            return { width: 486, height: 306, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 12, focusBitmapFilename: "home-page-my-media-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }
         end if
         if meta.imageStyle = "thumb" then
             return { width: 486, height: 348, itemSizeWidth: 1824, itemSpacing: -27, spacingAfter: 36, focusBitmapFilename: "home-page-thumbnail-focus.png", itemComponentName: "VideoMediaCard" }

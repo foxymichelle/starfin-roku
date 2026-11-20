@@ -49,7 +49,7 @@ namespace tests
 
             rows = page.findNode("accountRows")
             m.assertEqual(rows.jumpToRowItem, [0, 1])
-            m.assertEqual(rows.content.getChild(0).getChild(1).description, "* to forget")
+            m.assertEqual(rows.content.getChild(0).getChild(1).description, "* to remove")
         end function
 
         @it("allows the last-used vertical account to enter forget confirmation")
@@ -58,7 +58,7 @@ namespace tests
             account = { accountKey: "a", server: "http://one", isActive: true }
             page.accounts = [account, { accountKey: "b", server: "http://two" }]
             rows = page.findNode("verticalAccounts")
-            m.assertEqual(rows.content.getChild(0).accountStatus, "* to forget")
+            m.assertEqual(rows.content.getChild(0).accountStatus, "* to remove")
 
             rows.forgetRequested = account
 

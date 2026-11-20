@@ -2,6 +2,7 @@
 ' deactivate
 '-------------------------------------------------------------------------------
 sub deactivate()
+    captureHomeFocus()
     m.homeState.sync.active = false
     suppressRefreshMessages()
     m.top.visible = false

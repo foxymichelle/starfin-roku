@@ -41,7 +41,6 @@ end sub
 ' updateWatchedStyle
 '-------------------------------------------------------------------------------
 sub updateWatchedStyle()
-    m.badge.check.uri = WatchedIndicator.GetImageUri(m.global.watchedIndicatorStyle)
 end sub
 
 '-------------------------------------------------------------------------------
@@ -71,8 +70,7 @@ sub renderStatus()
     m.badge.check.visible = showCheck
     m.badge.countGroup.visible = showCount
     if width > 0 and height > 0 then
-        m.badge.check.width = width
-        m.badge.check.height = height
+        m.badge.check.translation = [width - 32, 0]
     end if
     if showCount <> true then return
 

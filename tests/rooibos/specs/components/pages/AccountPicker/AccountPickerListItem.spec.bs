@@ -75,11 +75,11 @@ namespace tests
         function _()
             row = CreateObject("roSGNode", "AccountPickerListItem")
             item = m.content()
-            item.accountStatus = "* to forget"
+            item.accountStatus = "* to remove"
 
             row.itemContent = item
 
-            m.assertEqual(row.findNode("status").text, "* to forget")
+            m.assertEqual(row.findNode("status").text, "* to remove")
             m.assertEqual(row.findNode("status").font.size, 20)
         end function
 

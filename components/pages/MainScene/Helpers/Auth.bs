@@ -127,6 +127,17 @@ sub authHandleAccountPickerClosed(closed as object)
         return
     end if
     if source = AccountPicker.Source.Login and overlay.accountsUpdated = true then authRefreshLoginSavedAccounts()
+    navTarget = Strings.ToString(overlay.navSelected)
+    if navTarget <> "" then
+        if navTarget = "home" then
+            m.header.homeSelected = true
+        else if navTarget = "search" then
+            m.header.searchSelected = true
+        else if navTarget = "settings" then
+            m.header.callFunc("requestSettingsOverlay")
+        end if
+        return
+    end if
     if overlay.signInSelected = true then
         server = m.login.serverValue
         if m.session <> invalid then server = Strings.ToString(m.session.server, server)

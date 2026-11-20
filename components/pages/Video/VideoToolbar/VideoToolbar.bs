@@ -36,6 +36,8 @@ sub initReferences()
     m.allEpisodesButton = m.top.findNode("allEpisodesButton")
     m.markWatchedButton = m.top.findNode("markWatchedButton")
     m.markUnwatchedButton = m.top.findNode("markUnwatchedButton")
+    m.favoriteButton = m.top.findNode("favoriteButton")
+    m.unfavoriteButton = m.top.findNode("unfavoriteButton")
     m.seriesButton = m.top.findNode("seriesButton")
     m.mediaInfoButton = m.top.findNode("mediaInfoButton")
     m.seasonButton = m.top.findNode("seasonButton")
@@ -54,6 +56,8 @@ sub initHandlers()
     m.allEpisodesButton.observeField("buttonSelected", "onAllEpisodesButtonSelected")
     m.markWatchedButton.observeField("buttonSelected", "onMarkWatchedButtonSelected")
     m.markUnwatchedButton.observeField("buttonSelected", "onMarkUnwatchedButtonSelected")
+    m.favoriteButton.observeField("buttonSelected", "onFavoriteButtonSelected")
+    m.unfavoriteButton.observeField("buttonSelected", "onUnfavoriteButtonSelected")
     m.seriesButton.observeField("buttonSelected", "onSeriesButtonSelected")
     m.mediaInfoButton.observeField("buttonSelected", "onMediaInfoButtonSelected")
     m.seasonButton.observeField("buttonSelected", "onSeasonButtonSelected")
@@ -202,6 +206,16 @@ sub focusWatchedAction()
 end sub
 
 '-------------------------------------------------------------------------------
+' focusFavoriteAction
+'-------------------------------------------------------------------------------
+sub focusFavoriteAction()
+    updateToolbarButtons()
+    buttonId = "favoriteButton"
+    if m.top.isFavorite then buttonId = "unfavoriteButton"
+    focusButton(findFocusedButtonIndex(buttonId))
+end sub
+
+'-------------------------------------------------------------------------------
 ' updateToolbarButtons
 '-------------------------------------------------------------------------------
 sub updateToolbarButtons()
@@ -278,8 +292,19 @@ sub configureToolbarButtons(state as object)
     m.resumeButton.text = getPlaybackButtonText("Resume", resumeLabelItem)
     m.playButton.text = getPlaybackButtonText("Play", m.top.playItem)
 
-    m.markWatchedButton.visible = state.supportsWatchedActions and state.isWatched <> true
-    m.markUnwatchedButton.visible = state.supportsWatchedActions and state.isWatched
+    isDiscoverItem = (m.top.isDiscover = true)
+    if isDiscoverItem then
+        m.resumeButton.visible = false
+        m.restartButton.visible = false
+        m.playButton.visible = false
+        m.randomPlayButton.visible = false
+        m.allEpisodesButton.visible = false
+    end if
+
+    m.markWatchedButton.visible = isDiscoverItem <> true and state.supportsWatchedActions and state.isWatched <> true
+    m.markUnwatchedButton.visible = isDiscoverItem <> true and state.supportsWatchedActions and state.isWatched
+    m.favoriteButton.visible = state.supportsWatchedActions and m.top.isFavorite <> true
+    m.unfavoriteButton.visible = state.supportsWatchedActions and m.top.isFavorite = true
     m.mediaInfoButton.text = m.top.mediaInfoText
     m.mediaInfoButton.visible = (state.isMovie or state.isEpisode) and m.top.mediaInfoText <> ""
     m.seriesButton.visible = state.supportsItemNavigation and state.isMovie <> true
@@ -295,6 +320,8 @@ function buildToolbarButtonList() as object
     if m.restartButton.visible then buttons.Push(m.restartButton)
     if m.playButton.visible then buttons.Push(m.playButton)
     if m.trailerButton.visible then buttons.Push(m.trailerButton)
+    if m.favoriteButton.visible then buttons.Push(m.favoriteButton)
+    if m.unfavoriteButton.visible then buttons.Push(m.unfavoriteButton)
     if m.markWatchedButton.visible then buttons.Push(m.markWatchedButton)
     if m.markUnwatchedButton.visible then buttons.Push(m.markUnwatchedButton)
     if m.randomPlayButton.visible then buttons.Push(m.randomPlayButton)
@@ -433,6 +460,27 @@ end sub
 '-------------------------------------------------------------------------------
 sub onMarkUnwatchedButtonSelected()
     m.top.markAsUnwatchedSelected = true
+end sub
+
+'-------------------------------------------------------------------------------
+' onFavoriteButtonSelected
+'-------------------------------------------------------------------------------
+sub onFavoriteButtonSelected()
+    m.top.favoriteSelected = true
+end sub
+
+'-------------------------------------------------------------------------------
+' onUnfavoriteButtonSelected
+'-------------------------------------------------------------------------------
+sub onUnfavoriteButtonSelected()
+    m.top.unfavoriteSelected = true
+end sub
+
+'-------------------------------------------------------------------------------
+' onFavoriteStateChanged
+'-------------------------------------------------------------------------------
+sub onFavoriteStateChanged()
+    updateToolbarButtons()
 end sub
 
 '-------------------------------------------------------------------------------

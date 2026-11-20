@@ -29,7 +29,7 @@ sub init()
         request: invalid
         query: ""
         submittedQuery: ""
-        minimumQueryLength: 3
+        minimumQueryLength: 2
         rowNodes: []
         rowHeights: []
         focusedRowIndex: 0
@@ -42,6 +42,9 @@ sub init()
         lifecycle: AsyncLifecycle.Create()
     }
     initHandlers()
+    if m.keyboard <> invalid then
+        m.keyboard.observeField("text", "onKeyboardTextChanged")
+    end if
     if m.top.loadRequest <> invalid then onLoadRequestChanged()
 end sub
 
@@ -151,20 +154,17 @@ end sub
 '-------------------------------------------------------------------------------
 sub onKeyboardTextChanged()
     query = Strings.Trim(m.keyboard.text)
-    if query = m.searchState.query then return
-
-    if m.searchState.loading.inFlight then cancelSearch(false)
-
-    m.searchState.query = query
-    m.searchState.submittedQuery = ""
-    AsyncLifecycle.Begin(m.searchState.lifecycle, "")
-    m.searchTask.control = TaskControl.Command.Stop
-    Spinner.Hide()
-
     if Len(query) < m.searchState.minimumQueryLength then
+        if m.searchState.loading.inFlight then cancelSearch(false)
+        m.searchState.submittedQuery = ""
         clearRows()
         m.helpLabel.visible = true
+        AppMessage.Dismiss()
+        return
     end if
+    if query = m.searchState.submittedQuery then return
+    if m.searchState.loading.inFlight then cancelSearch(false)
+    runSearch()
 end sub
 
 '-------------------------------------------------------------------------------
@@ -178,17 +178,14 @@ end sub
 ' runSearch
 '-------------------------------------------------------------------------------
 sub runSearch()
-    if m.searchState.loading.inFlight or m.searchState.loading.stopping then return
-
     query = Strings.Trim(m.keyboard.text)
     m.searchState.query = query
 
     if Len(query) < m.searchState.minimumQueryLength then
         m.searchState.submittedQuery = ""
-        Spinner.Hide()
         clearRows()
-        AppMessage.Show("Enter at least 3 characters.")
-        focusSearchButton()
+        m.helpLabel.visible = true
+        AppMessage.Dismiss()
         return
     end if
 
@@ -200,9 +197,7 @@ sub runSearch()
     m.log.activity("Searching for " + ActivityLog.Quote(query, "query"))
     AsyncLifecycle.Begin(m.searchState.lifecycle, query)
     m.searchState.loading.inFlight = true
-    bindSearchSpinner()
-    Spinner.ShowBlocking()
-    if m.searchState.loading.spinner <> invalid then m.searchState.loading.spinner.cancelEnabled = true
+    m.searchState.loading.stopping = false
     AppMessage.Dismiss()
     m.searchTask.request = request
     m.searchTask.control = TaskControl.Command.Run
@@ -224,7 +219,6 @@ sub onSearchResponse()
         message = (response.failureKind <> invalid ? "Search failed. " : "") + RequestFailure.GetDisplayMessage(response, "Search failed.")
         AppMessage.Show(message)
         m.log.activity("Search failed for " + ActivityLog.Quote(m.searchState.submittedQuery, "query") + ": " + Strings.ToString(response.errorMessage, message))
-        focusSearchButton()
         return
     end if
 
@@ -244,7 +238,7 @@ end sub
 sub onSearchCancelRequested()
     if m.searchState.loading.inFlight <> true then return
 
-    cancelSearch(true)
+    cancelSearch(false)
 end sub
 
 '-------------------------------------------------------------------------------
@@ -253,19 +247,16 @@ end sub
 sub cancelSearch(restoreFocus as boolean)
     wasInFlight = m.searchState.loading.inFlight
     AsyncLifecycle.Deactivate(m.searchState.lifecycle)
-    if wasInFlight then m.searchState.loading.stopping = true
     m.searchTask.control = TaskControl.Command.Stop
+    m.searchState.loading.stopping = false
     m.searchState.submittedQuery = ""
     if wasInFlight then finishSearchLoading()
-    if wasInFlight and restoreFocus then focusSearchButton()
 end sub
 
 '-------------------------------------------------------------------------------
 ' onSearchTaskStateChanged
 '-------------------------------------------------------------------------------
 sub onSearchTaskStateChanged()
-    if m.searchState.loading.stopping <> true then return
-
     taskState = LCase(m.searchTask.state)
     if taskState = "stop" or taskState = "done" or taskState = "init" then m.searchState.loading.stopping = false
 end sub
@@ -275,7 +266,6 @@ end sub
 '-------------------------------------------------------------------------------
 sub finishSearchLoading()
     m.searchState.loading.inFlight = false
-    Spinner.HideBlocking()
 end sub
 
 '-------------------------------------------------------------------------------
@@ -287,19 +277,26 @@ sub renderRows(payload as dynamic)
 
     y = 0
     rowIndex = 0
-    rowIndex = addSearchRow(rowIndex, y, "Movies & TV Shows", payload.moviesAndSeries, getPosterLayout())
+    movies = payload.movies
+    if movies = invalid then movies = []
+    shows = payload.shows
+    if shows = invalid then shows = []
+    discover = payload.discover
+    if discover = invalid then discover = []
+
+    rowIndex = addSearchRow(rowIndex, y, "Movies", movies, getPosterLayout())
+    y = getRowsHeight()
+    rowIndex = addSearchRow(rowIndex, y, "Shows", shows, getPosterLayout())
     y = getRowsHeight()
     rowIndex = addSearchRow(rowIndex, y, "Episodes", EpisodeSort.BySeriesSeasonEpisode(payload.episodes), getThumbnailLayout())
+    y = getRowsHeight()
+    rowIndex = addSearchRow(rowIndex, y, "Discover", discover, getPosterLayout())
     y = getRowsHeight()
     rowIndex = addPeopleRow(rowIndex, y, payload.people)
 
     refreshEpisodeCounts()
     m.helpLabel.visible = hasRows() <> true
-    if hasRows() then
-        focusRow(0)
-    else
-        focusKeyboard()
-    end if
+    m.searchState.focusedRowIndex = 0
 end sub
 
 '-------------------------------------------------------------------------------
@@ -314,7 +311,7 @@ function addSearchRow(rowIndex as integer, y as integer, title as string, items 
     shelf.layout = layout
     shelf.rowContent = content
     shelf.translation = [0, y]
-    shelf.canFocusExitUp = rowIndex > 0
+    shelf.canFocusExitUp = true
     shelf.canFocusExitDown = false
     shelf.observeField("selectedItem", "onSearchShelfSelected")
     shelf.observeField("focusExitUp", "onShelfFocusExitUp")
@@ -437,7 +434,11 @@ end sub
 '-------------------------------------------------------------------------------
 function moveRowFocus(delta as integer) as boolean
     targetIndex = m.searchState.focusedRowIndex + delta
-    if targetIndex < 0 or targetIndex >= m.searchState.rowNodes.Count() then return false
+    if targetIndex < 0 then
+        m.top.focusExitUp = true
+        return true
+    end if
+    if targetIndex >= m.searchState.rowNodes.Count() then return false
 
     focusRow(targetIndex)
     return true
@@ -483,7 +484,7 @@ sub syncRowFocusExit()
     for i = 0 to m.searchState.rowNodes.Count() - 1
         row = m.searchState.rowNodes[i]
         if row <> invalid and row.hasField("canFocusExitUp") then
-            row.canFocusExitUp = i > 0
+            row.canFocusExitUp = true
             row.canFocusExitDown = i < m.searchState.rowNodes.Count() - 1
         end if
     end for
@@ -647,7 +648,6 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
 
     if key = Remote.Key.Down and m.keyboard.isInFocusChain() then
-        focusSearchButton()
         return true
     end if
 

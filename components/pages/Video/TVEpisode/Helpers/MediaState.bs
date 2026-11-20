@@ -19,6 +19,57 @@ sub onMarkAsUnwatchedSelected()
 end sub
 
 '-------------------------------------------------------------------------------
+' onFavoriteSelected
+'-------------------------------------------------------------------------------
+sub onFavoriteSelected()
+    runFavoriteTask("AddToFavorites", true)
+end sub
+
+'-------------------------------------------------------------------------------
+' onUnfavoriteSelected
+'-------------------------------------------------------------------------------
+sub onUnfavoriteSelected()
+    runFavoriteTask("RemoveFromFavorites", false)
+end sub
+
+'-------------------------------------------------------------------------------
+' runFavoriteTask
+'-------------------------------------------------------------------------------
+sub runFavoriteTask(action as string, targetFavorite as boolean)
+    if m.favoriteItemTask = invalid then return
+    series = m.pageState.series
+    request = m.pageState.request
+    if series = invalid or request = invalid then return
+    itemId = Format.FirstNonEmpty([series.Id, request.seriesId, request.itemId], "")
+    if itemId = "" then return
+
+    m.videoToolbar.isFavorite = targetFavorite
+    if series.UserData = invalid then series.UserData = {}
+    series.UserData.IsFavorite = targetFavorite
+
+    m.favoriteItemTask.request = {
+        action: action
+        server: request.server
+        token: request.token
+        userId: request.userId
+        itemId: itemId
+    }
+    m.favoriteItemTask.control = TaskControl.Command.Run
+end sub
+
+'-------------------------------------------------------------------------------
+' onFavoriteTaskResponse
+'-------------------------------------------------------------------------------
+sub onFavoriteTaskResponse()
+    if m.favoriteItemTask = invalid then return
+    response = m.favoriteItemTask.response
+    if response = invalid or response.ok <> true then return
+    isFav = (Strings.ToString(response.action) = "AddToFavorites")
+    m.videoToolbar.isFavorite = isFav
+    m.videoToolbar.callFunc("focusFavoriteAction")
+end sub
+
+'-------------------------------------------------------------------------------
 ' runWatchedTask
 '-------------------------------------------------------------------------------
 sub runWatchedTask(action as string)

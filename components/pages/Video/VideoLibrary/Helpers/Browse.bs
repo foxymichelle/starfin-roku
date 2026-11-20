@@ -3,10 +3,7 @@ import "pkg:/source/String.bs"
 ' loadSavedVideoLibraryViewState
 '-------------------------------------------------------------------------------
 function loadSavedVideoLibraryViewState(request as object) as dynamic
-    if canPersistVideoLibraryViewState(request) <> true then
-        return invalid
-    end if
-    return LibraryViewStateStore.Load(Strings.ToString(request.accountKey), Strings.ToString(request.libraryId))
+    return invalid
 end function
 
 '-------------------------------------------------------------------------------
@@ -29,31 +26,7 @@ end function
 ' persistVideoLibraryViewState
 '-------------------------------------------------------------------------------
 sub persistVideoLibraryViewState()
-    request = m.pageState.request
-    if canPersistVideoLibraryViewState(request) <> true then
-        return
-    end if
-    selection = m.pageState.selectedSort
-    if selection = invalid then
-        return
-    end if
-    state = {
-        optionKey: LibraryBrowse.NormalizeVideoOption(m.pageState.selectedSortKey)
-        sortKey: Strings.ToString(selection.sortKey, LibraryBrowse.SortKey.Title)
-        sortOrder: LibraryBrowse.NormalizeSortOrder(selection.sortOrder)
-        selectedDecade: m.pageState.filterSelection.decade
-        selectedGenre: m.pageState.filterSelection.genre
-        libraryTitle: Strings.ToString(request.title)
-        collectionType: Strings.ToString(request.collectionType)
-    }
-    accountKey = Strings.ToString(request.accountKey)
-    libraryId = Strings.ToString(request.libraryId)
-    isCollection = isCollectionContentRequest(request)
-    if isCollection and state.optionKey = LibraryBrowse.Option.Title and state.sortOrder = LibraryBrowse.SortOrder.Ascending then
-        LibraryViewStateStore.Remove(accountKey, libraryId)
-    else
-        LibraryViewStateStore.Save(accountKey, libraryId, state)
-    end if
+    return
 end sub
 
 '-------------------------------------------------------------------------------

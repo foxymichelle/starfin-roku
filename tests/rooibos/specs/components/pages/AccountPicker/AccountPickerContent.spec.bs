@@ -58,7 +58,7 @@ namespace tests
 
             item = m.getRenderedAccount(0)
 
-            m.assertEqual(item.description, "* to forget")
+            m.assertEqual(item.description, "* to remove")
         end function
 
         @it("hides account rows for an empty account list")
@@ -482,7 +482,7 @@ namespace tests
             content = m.node.verticalAccounts.content
 
             m.assertEqual(content.getChild(0).accountStatus, "Active")
-            m.assertEqual(content.getChild(1).accountStatus, "* to forget")
+            m.assertEqual(content.getChild(1).accountStatus, "* to remove")
         end function
 
         @it("opens the existing confirmation from a vertical list forget request")

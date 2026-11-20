@@ -346,10 +346,17 @@ function onKeyEvent(key as string, press as boolean) as boolean
         if canFocusSortButton() then
             return focusSortButton()
         end if
-        return true
+        return requestHeaderFocus()
     end if
-    if key = Remote.Key.Left and m.browseByButton.isInFocusChain() and m.musicVideoRandomButton.visible then
-        return focusMusicVideoRandomButton()
+    if key = Remote.Key.Right and m.sortButton.isInFocusChain() then
+        return requestHeaderFocus()
+    end if
+    if key = Remote.Key.Left and m.browseByButton.isInFocusChain() then
+        if m.musicVideoRandomButton.visible then
+            return focusMusicVideoRandomButton()
+        end if
+        m.top.exitLeftToHeader = true
+        return true
     end if
     if key = Remote.Key.Left and m.sortButton.isInFocusChain() then
         return focusBrowseByButton()
@@ -369,12 +376,9 @@ function onKeyEvent(key as string, press as boolean) as boolean
     end if
     if key = Remote.Key.Up and isItemsGridAtFirstRow() then
         stopVideoLibraryProgressHold(Remote.Key.Up)
-        if m.musicVideoRandomButton.visible then return focusMusicVideoRandomButton()
-        if canFocusBrowseByButton() <> true then
-            return requestHeaderFocus()
-        end if
-        return focusBrowseByButton()
+        return requestHeaderFocus()
     end if
+
     if key = Remote.Key.Right and isItemsGridAtLastColumn() then
         return true
     end if

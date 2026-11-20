@@ -55,6 +55,7 @@ function searchReturnToPage() as boolean
 
     m.searchPage.visible = true
     m.header.visible = true
+    syncHeaderActivePage()
     m.searchPage.callFunc("activate")
     return true
 end function

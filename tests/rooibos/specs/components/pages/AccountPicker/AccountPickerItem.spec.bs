@@ -54,12 +54,12 @@ namespace tests
 
         @it("renders the account status")
         function _()
-            m.top.itemContent = m.createItemContent("David", "* to forget", "http://server/image.jpg")
+            m.top.itemContent = m.createItemContent("David", "* to remove", "http://server/image.jpg")
 
             'bs:disable-next-line 1140
             onItemContentChanged()
 
-            m.assertEqual(m.node.statusLabel.text, "* to forget")
+            m.assertEqual(m.node.statusLabel.text, "* to remove")
         end function
 
         @it("renders a supplied account image")

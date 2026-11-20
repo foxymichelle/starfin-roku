@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<component name="AccountBadge" extends="Group">
+<component name="AccountBadge" extends="Group" focusable="true">
   <script type="text/brightscript" uri="pkg:/components/controls/AccountBadge/AccountBadge.bs" />
   <interface>
+    <field id="focused" type="boolean" value="false" onChange="onFocusedChanged" />
+    <function name="getContentWidth" />
     <field id="username" type="string" onChange="onUsernameChanged" />
     <field id="imageUri" type="string" onChange="onImageUriChanged" />
     <field id="backgroundColor" type="color" onChange="onColorsChanged" />
@@ -9,12 +11,14 @@
     <field id="glassColor" type="color" onChange="onColorsChanged" />
   </interface>
   <children>
-    <Group id="badgeVisual">
-      <Poster id="badgeImage" width="96" height="96" loadWidth="192" loadHeight="192" loadDisplayMode="scaleToZoom" />
-      <Poster id="badgeMatte" width="96" height="96" uri="pkg:/images/header/fhd/account-badge-matte.png" />
-      <Poster id="badgeRing" translation="[-3,-3]" width="102" height="102" uri="pkg:/images/header/fhd/account-badge-ring-overlay.png" />
-      <Poster id="badgeGlass" translation="[-3,-3]" width="102" height="102" uri="pkg:/images/header/fhd/account-badge-glass-overlay.png" />
+    <Group id="badgeRoot" scaleRotateCenter="[48,48]">
+      <Group id="badgeVisual">
+        <Poster id="badgeImage" width="96" height="96" loadWidth="192" loadHeight="192" loadDisplayMode="scaleToZoom" />
+        <Poster id="badgeMatte" width="96" height="96" uri="pkg:/images/header/fhd/account-badge-matte.png" />
+        <Poster id="badgeRing" translation="[-5,-5]" width="106" height="106" uri="pkg:/images/header/fhd/account-badge-ring-overlay.png" />
+        <Poster id="badgeGlass" translation="[-3,-3]" width="102" height="102" uri="pkg:/images/header/fhd/account-badge-glass-overlay.png" />
+      </Group>
+      <Label id="badgeName" translation="[122,24]" width="422" height="48" vertAlign="center" color="0xF6F7FBFF" font="font:MediumBoldSystemFont" />
     </Group>
-    <Label id="badgeName" translation="[122,24]" width="422" height="48" vertAlign="center" color="0xF6F7FBFF" font="font:MediumBoldSystemFont" />
   </children>
 </component>

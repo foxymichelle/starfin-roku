@@ -45,6 +45,8 @@ sub videoLibraryShow(selection as object, fromCollections as boolean)
     page.observeField("selectedEpisode", "videoLibraryHandleEpisodeSelected")
     page.observeField("playbackSelected", "videoLibraryHandlePlaybackSelected")
     page.observeField("focusExitUp", "videoLibraryHandleFocusExitUp")
+    page.observeField("exitLeftToHeader", "navHandleLibraryExitLeftToHeader")
+    page.observeField("wrapRightToHeaderUser", "navHandleLibraryWrapRightToUser")
     page.observeField("thumbnailLayoutActive", "videoLibraryHandleThumbnailLayoutChanged")
     page.observeField("movieLibraryBrowseStateChanged", "videoLibraryHandleMovieLibraryBrowseStateChanged")
     page.settings = m.settings
@@ -68,6 +70,7 @@ sub videoLibraryShow(selection as object, fromCollections as boolean)
     if m.collectionsPage <> invalid then m.collectionsPage.visible = false
     hideHome()
     m.header.visible = true
+    syncHeaderActivePage()
     page.loadRequest = loadRequest
     page.callFunc("activate")
 end sub

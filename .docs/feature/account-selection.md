@@ -91,9 +91,9 @@ reference merely by showing the picker.
 The vertical list handles Options directly and emits the focused account through
 an always-notifying `forgetRequested` event. Shared content owns the existing
 forget confirmation, removal, cancellation, and return focus. In the dialog,
-inactive rows show `* to forget`; the authenticated account shows `Active` and
+inactive rows show `* to remove`; the authenticated account shows `Active` and
 cannot be forgotten. Startup has no authenticated account: every row shows
-`* to forget`, including the last-used account. The full-screen host disables
+`* to remove`, including the last-used account. The full-screen host disables
 `protectActiveAccount` on the shared content; the dialog retains its default
 protection. Cancelling confirmation preserves both the account and its saved
 active reference. Confirmed startup removal clears that reference only when the

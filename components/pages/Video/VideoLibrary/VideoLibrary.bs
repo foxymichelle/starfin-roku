@@ -46,7 +46,7 @@ sub init()
         browseWidth: 190
         sortWidth: 48
         buttonGap: 8
-        y: 132
+        y: 36
         deferProgressSync: false
     }
     m.pageState = {
@@ -371,3 +371,16 @@ sub ensurePlaylistSpecializationInitialized()
     m.top.callFunc("specializationInitialize")
     m.playlistSpecializationInitialized = true
 end sub
+
+'-------------------------------------------------------------------------------
+' focusSortControlsFromHeader
+'-------------------------------------------------------------------------------
+function focusSortControlsFromHeader() as boolean
+    if m.musicVideoRandomButton <> invalid and m.musicVideoRandomButton.visible then
+        return focusMusicVideoRandomButton()
+    end if
+    if canFocusBrowseByButton() then
+        return focusBrowseByButton()
+    end if
+    return false
+end function

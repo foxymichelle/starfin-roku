@@ -39,6 +39,10 @@ sub initReferences()
     m.systemButton = m.top.findNode("systemButton")
     m.userMenuButton = m.top.findNode("userMenuButton")
     m.accountBadge = m.top.findNode("accountBadge")
+    m.topHomeGroup = m.top.findNode("topHomeGroup")
+    m.topHomeIcon = m.top.findNode("topHomeIcon")
+    m.topSearchGroup = m.top.findNode("topSearchGroup")
+    m.topSearchIcon = m.top.findNode("topSearchIcon")
     m.clock = m.top.findNode("clock")
     m.systemDropdownMenu = m.top.findNode("systemDropdownMenu")
     m.accountDropdownMenu = m.top.findNode("accountDropdownMenu")
@@ -54,6 +58,45 @@ sub onThumbnailLibraryLayoutChanged()
     else
         m.clock.translation = [1680, 32]
     end if
+    layoutTopLeftIcons()
+end sub
+
+'-------------------------------------------------------------------------------
+' layoutTopLeftIcons
+'-------------------------------------------------------------------------------
+sub layoutTopLeftIcons()
+    iconGap = 52
+    iconSize = 40
+    cursorX = 48
+
+    if m.accountBadge <> invalid and m.accountBadge.visible = true then
+        badgeW = m.accountBadge.callFunc("getContentWidth")
+        if badgeW = invalid or badgeW < 96 then badgeW = 96
+        cursorX = 48 + badgeW + iconGap
+    end if
+
+    if m.topHomeGroup <> invalid and m.topHomeGroup.visible = true then
+        m.topHomeGroup.translation = [cursorX, 44]
+        cursorX = cursorX + iconSize + iconGap
+    end if
+
+    if m.topSearchGroup <> invalid and m.topSearchGroup.visible = true then
+        m.topSearchGroup.translation = [cursorX, 44]
+    end if
+end sub
+
+'-------------------------------------------------------------------------------
+' onActivePageChanged
+'-------------------------------------------------------------------------------
+sub onActivePageChanged()
+    page = LCase(Strings.ToString(m.top.activePage, "home"))
+    if m.topHomeGroup <> invalid then
+        m.topHomeGroup.visible = (page <> "home")
+    end if
+    if m.topSearchGroup <> invalid then
+        m.topSearchGroup.visible = (page <> "search")
+    end if
+    layoutTopLeftIcons()
 end sub
 
 '-------------------------------------------------------------------------------
@@ -65,6 +108,10 @@ sub initHandlers()
     m.searchButton.observeField("buttonSelected", "onSearchPressed")
     m.systemButton.observeField("buttonSelected", "onSystemPressed")
     m.userMenuButton.observeField("buttonSelected", "onUserMenuPressed")
+    m.accountBadge.observeField("buttonSelected", "onUserMenuPressed")
+    m.accountBadge.observeField("focusedChild", "onAccountBadgeFocusChanged")
+    m.topHomeGroup.observeField("focusedChild", "syncTopBarFocusVisuals")
+    m.topSearchGroup.observeField("focusedChild", "syncTopBarFocusVisuals")
     m.systemDropdownMenu.observeField("selectedItem", "onSystemDropdownItemSelected")
     m.accountDropdownMenu.observeField("selectedItem", "onAccountDropdownItemSelected")
 end sub
@@ -91,13 +138,26 @@ end sub
 '-------------------------------------------------------------------------------
 function focusHeader() as boolean
     closeMenu()
+    page = LCase(Strings.ToString(m.top.activePage, "home"))
 
-    for each button in m.focusableHeaderButtons
-        if button <> invalid then
-            button.setFocus(true)
-            return true
-        end if
-    end for
+    if page <> "home" and m.topHomeGroup <> invalid and m.topHomeGroup.visible = true then
+        m.topHomeGroup.setFocus(true)
+        syncTopBarFocusVisuals()
+        return true
+    end if
+
+    if m.accountBadge <> invalid and m.accountBadge.visible = true then
+        m.accountBadge.setFocus(true)
+        syncTopBarFocusVisuals()
+        return true
+    end if
+
+    topBarNodes = getTopBarFocusableNodes()
+    if topBarNodes.Count() > 0 then
+        topBarNodes[0].setFocus(true)
+        syncTopBarFocusVisuals()
+        return true
+    end if
 
     return false
 end function
@@ -143,24 +203,45 @@ function onKeyEvent(key as string, press as boolean) as boolean
         end if
     end if
 
-    if key = Remote.Key.Left then
-        return focusHeaderButtonByOffset(-1)
-    else if key = Remote.Key.Right then
-        return focusHeaderButtonByOffset(1)
-    else if key = Remote.Key.Down then
-        closeMenu()
-        m.top.downSelected = true
-        return true
-    else if key = Remote.Key.Back then
-        if m.top.menuOpen = true then
+    topBarNodes = getTopBarFocusableNodes()
+    topIdx = getFocusedTopBarIndex(topBarNodes)
+
+    if topIdx >= 0 then
+        if key = Remote.Key.Left then
+            nextIdx = topIdx - 1
+            if nextIdx < 0 then nextIdx = topBarNodes.Count() - 1
+            topBarNodes[nextIdx].setFocus(true)
+            syncTopBarFocusVisuals()
+            return true
+        else if key = Remote.Key.Right then
+            nextIdx = topIdx + 1
+            if nextIdx >= topBarNodes.Count() then
+                if m.top.hasLibrarySortControls = true then
+                    clearTopBarFocusVisuals()
+                    m.top.exitRightSelected = true
+                    return true
+                end if
+                nextIdx = 0
+            end if
+            topBarNodes[nextIdx].setFocus(true)
+            syncTopBarFocusVisuals()
+            return true
+        else if key = Remote.Key.OK then
+            if topBarNodes[topIdx].isSameNode(m.topHomeGroup) then
+                clearTopBarFocusVisuals()
+                m.top.homeSelected = true
+                return true
+            else if topBarNodes[topIdx].isSameNode(m.topSearchGroup) then
+                clearTopBarFocusVisuals()
+                m.top.searchSelected = true
+                return true
+            end if
+        else if key = Remote.Key.Down or key = Remote.Key.Back then
+            clearTopBarFocusVisuals()
             closeMenu()
+            m.top.downSelected = true
             return true
         end if
-
-        if getFocusedHeaderButtonIndex() < 0 then return false
-        closeMenu()
-        m.top.backSelected = true
-        return true
     end if
 
     return false
@@ -317,9 +398,8 @@ end sub
 ' onUserMenuPressed
 '-------------------------------------------------------------------------------
 sub onUserMenuPressed()
-    closeSystemMenu()
-    m.accountDropdownMenu.callFunc("toggleMenu")
-    syncMenuOpen()
+    closeMenu()
+    m.top.switchAccountSelected = true
 end sub
 
 '-------------------------------------------------------------------------------
@@ -480,6 +560,7 @@ sub updateAccountBadge()
     if Strings.ToString(request.primaryImageTag) <> "" then imageUri = AccountImage.GetUri(request, 192, 192)
     m.accountBadge.imageUri = imageUri
     m.accountBadge.username = m.top.username
+    layoutTopLeftIcons()
 end sub
 
 '-------------------------------------------------------------------------------
@@ -526,3 +607,86 @@ sub updateAccountBadgeTheme()
     m.accountBadge.ringColor = palette.ring
     m.accountBadge.glassColor = palette.glass
 end sub
+
+'-------------------------------------------------------------------------------
+' getTopBarFocusableNodes
+'-------------------------------------------------------------------------------
+function getTopBarFocusableNodes() as object
+    nodes = []
+    if m.accountBadge <> invalid and m.accountBadge.visible = true then nodes.Push(m.accountBadge)
+    if m.topHomeGroup <> invalid and m.topHomeGroup.visible = true then nodes.Push(m.topHomeGroup)
+    if m.topSearchGroup <> invalid and m.topSearchGroup.visible = true then nodes.Push(m.topSearchGroup)
+    return nodes
+end function
+
+'-------------------------------------------------------------------------------
+' getFocusedTopBarIndex
+'-------------------------------------------------------------------------------
+function getFocusedTopBarIndex(nodes as object) as integer
+    for i = 0 to nodes.Count() - 1
+        if nodes[i] <> invalid and nodes[i].isInFocusChain() then return i
+    end for
+    return -1
+end function
+
+'-------------------------------------------------------------------------------
+' syncTopBarFocusVisuals
+'-------------------------------------------------------------------------------
+sub syncTopBarFocusVisuals()
+    if m.accountBadge <> invalid then
+        m.accountBadge.focused = m.accountBadge.isInFocusChain()
+    end if
+    if m.topHomeGroup <> invalid then
+        if m.topHomeGroup.isInFocusChain() then
+            m.topHomeGroup.scale = [1.26, 1.26]
+            if m.topHomeIcon <> invalid then m.topHomeIcon.blendColor = "0xFFFFFFFF"
+        else
+            m.topHomeGroup.scale = [1.0, 1.0]
+            if m.topHomeIcon <> invalid then m.topHomeIcon.blendColor = "0xD0D7E2FF"
+        end if
+    end if
+    if m.topSearchGroup <> invalid then
+        if m.topSearchGroup.isInFocusChain() then
+            m.topSearchGroup.scale = [1.26, 1.26]
+            if m.topSearchIcon <> invalid then m.topSearchIcon.blendColor = "0xFFFFFFFF"
+        else
+            m.topSearchGroup.scale = [1.0, 1.0]
+            if m.topSearchIcon <> invalid then m.topSearchIcon.blendColor = "0xD0D7E2FF"
+        end if
+    end if
+end sub
+
+'-------------------------------------------------------------------------------
+' clearTopBarFocusVisuals
+'-------------------------------------------------------------------------------
+sub clearTopBarFocusVisuals()
+    if m.accountBadge <> invalid then m.accountBadge.focused = false
+    if m.topHomeGroup <> invalid then
+        m.topHomeGroup.scale = [1.0, 1.0]
+        if m.topHomeIcon <> invalid then m.topHomeIcon.blendColor = "0xD0D7E2FF"
+    end if
+    if m.topSearchGroup <> invalid then
+        m.topSearchGroup.scale = [1.0, 1.0]
+        if m.topSearchIcon <> invalid then m.topSearchIcon.blendColor = "0xD0D7E2FF"
+    end if
+end sub
+
+'-------------------------------------------------------------------------------
+' onAccountBadgeFocusChanged
+'-------------------------------------------------------------------------------
+sub onAccountBadgeFocusChanged()
+    syncTopBarFocusVisuals()
+end sub
+
+'-------------------------------------------------------------------------------
+' focusRightmostHeaderControl
+'-------------------------------------------------------------------------------
+function focusRightmostHeaderControl() as boolean
+    closeMenu()
+    topBarNodes = getTopBarFocusableNodes()
+    if topBarNodes.Count() = 0 then return false
+    lastNode = topBarNodes[topBarNodes.Count() - 1]
+    lastNode.setFocus(true)
+    syncTopBarFocusVisuals()
+    return true
+end function

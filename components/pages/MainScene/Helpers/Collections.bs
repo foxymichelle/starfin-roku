@@ -20,6 +20,7 @@ sub collectionsHandleHomeCollectionsSelected()
     authAppendDynamicPage(page)
     hideHome()
     m.header.visible = true
+    syncHeaderActivePage()
     page.loadRequest = {
         server: m.session.server
         token: m.session.token

@@ -73,7 +73,7 @@ end function
 sub navHandleHeaderHomeSelected()
     clearStatus()
     resetDynamicPages()
-    showHome()
+    showHome(true)
 end sub
 
 '-------------------------------------------------------------------------------
@@ -534,14 +534,33 @@ sub showHome(refresh = false as boolean)
     m.log.activity("Opening home")
     m.homePage.visible = true
     m.header.visible = true
+    syncHeaderActivePage()
 
     m.homePage.callFunc("activate", refresh)
+end sub
+
+'-------------------------------------------------------------------------------
+' syncHeaderActivePage
+'-------------------------------------------------------------------------------
+sub syncHeaderActivePage()
+    if m.header = invalid then return
+    if m.searchPage <> invalid and m.searchPage.visible = true then
+        m.header.activePage = "search"
+        m.header.hasLibrarySortControls = false
+    else if m.homePage <> invalid and m.homePage.visible = true then
+        m.header.activePage = "home"
+        m.header.hasLibrarySortControls = false
+    else
+        m.header.activePage = "other"
+        m.header.hasLibrarySortControls = (m.videoLibraryPage <> invalid and m.videoLibraryPage.visible = true)
+    end if
 end sub
 
 '-------------------------------------------------------------------------------
 ' focusActiveSurface
 '-------------------------------------------------------------------------------
 sub focusActiveSurface()
+    syncHeaderActivePage()
     if m.startupAccount.active and m.startupAccount.page <> invalid and m.startupAccount.page.visible then
         m.startupAccount.page.callFunc("focusAccounts")
     else if m.playbackController.callFunc("isPlayerVisible") then
@@ -786,4 +805,26 @@ end sub
 '-------------------------------------------------------------------------------
 sub syncUnwatchedEpisodeCount(settings as dynamic)
     m.global.showUnwatchedEpisodeCount = SettingsStore.GetSettingValue(settings, SettingsStore.Key.ShowUnwatchedEpisodeCount)
+end sub
+
+'-------------------------------------------------------------------------------
+' navHandleHeaderExitRight
+'-------------------------------------------------------------------------------
+sub navHandleHeaderExitRight()
+    if m.videoLibraryPage <> invalid and m.videoLibraryPage.visible = true then
+        if m.videoLibraryPage.callFunc("focusSortControlsFromHeader") = true then return
+    end if
+    if m.collectionsPage <> invalid and m.collectionsPage.visible = true then
+        if m.collectionsPage.callFunc("focusSortControlsFromHeader") = true then return
+    end if
+    if m.header <> invalid then m.header.callFunc("focusUserMenuButton")
+end sub
+
+'-------------------------------------------------------------------------------
+' navHandleLibraryExitLeftToHeader
+'-------------------------------------------------------------------------------
+sub navHandleLibraryExitLeftToHeader()
+    if m.header <> invalid and m.header.visible = true then
+        m.header.callFunc("focusRightmostHeaderControl")
+    end if
 end sub
